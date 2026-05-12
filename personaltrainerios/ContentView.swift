@@ -1,21 +1,14 @@
-//
-//  ContentView.swift
-//  personaltrainerios
-//
-//  Created by Jon Metz on 5/7/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @State private var authManager = AuthManager()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        if authManager.isSignedIn {
+            MainTabView(authManager: authManager)
+        } else {
+            SignInView(authManager: authManager)
         }
-        .padding()
     }
 }
 

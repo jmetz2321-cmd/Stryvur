@@ -12,6 +12,9 @@ struct personaltraineriosApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear {
+                    NotificationManager.requestPermission()
+                }
         }
     }
 }
