@@ -7,6 +7,7 @@ struct CelebrationOverlay: View {
     @State private var scale = 0.5
     @State private var opacity = 0.0
     @State private var confettiVisible = false
+    @State private var trophyBounce = false
 
     var body: some View {
         ZStack {
@@ -23,10 +24,11 @@ struct CelebrationOverlay: View {
                         .font(.system(size: 60))
                         .foregroundStyle(.yellow)
                         .shadow(color: .yellow.opacity(0.5), radius: 20)
+                        .scaleEffect(trophyBounce ? 1.15 : 1.0)
                 }
                 .frame(width: 150, height: 150)
 
-                Text("Congratulations!")
+                Text("Let's Go!")
                     .font(.title)
                     .fontWeight(.bold)
 
@@ -36,9 +38,10 @@ struct CelebrationOverlay: View {
                     .foregroundStyle(.secondary)
 
                 Button {
+                    FeedbackManager.light()
                     onDismiss()
                 } label: {
-                    Text("Continue")
+                    Text("Keep Going")
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                 }
@@ -52,12 +55,21 @@ struct CelebrationOverlay: View {
             .opacity(opacity)
         }
         .onAppear {
+            FeedbackManager.success()
+
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
                 scale = 1.0
                 opacity = 1.0
             }
             withAnimation(.easeOut(duration: 0.8).delay(0.2)) {
                 confettiVisible = true
+            }
+            // Trophy bounce
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.4).delay(0.3)) {
+                trophyBounce = true
+            }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.5).delay(0.6)) {
+                trophyBounce = false
             }
         }
     }

@@ -61,6 +61,7 @@ class AppViewModel {
         todayCheckIn = checkIn
         checkInHistory.append(checkIn)
         rewardProgress.totalPoints += 10
+        FeedbackManager.medium()
 
         adaptAllPlans()
         recordStreakActivity()
@@ -126,6 +127,7 @@ class AppViewModel {
             checkedMeals.remove(mealId)
         } else {
             checkedMeals.insert(mealId)
+            FeedbackManager.light()
         }
         checkNutritionRewards()
         saveData()
@@ -150,6 +152,7 @@ class AppViewModel {
 
     func addWater(_ oz: Int = 8) {
         todayWaterOz += oz
+        FeedbackManager.soft()
         checkHydrationReward()
         saveData()
     }
@@ -360,7 +363,7 @@ class AppViewModel {
                 goals[index].milestones[i].isReached = true
                 rewardProgress.milestonesReached += 1
                 rewardProgress.totalPoints += 25
-                triggerCelebration("Milestone reached: \(goals[index].milestones[i].title)!")
+                triggerCelebration(CoachCopy.milestoneReached(goals[index].milestones[i].title))
             }
         }
 
@@ -369,7 +372,7 @@ class AppViewModel {
             rewardProgress.goalsCompleted += 1
             rewardProgress.totalPoints += 100
             unlockReward(category: .goalComplete)
-            triggerCelebration("Goal completed: \(goals[index].title)!")
+            triggerCelebration(CoachCopy.goalCompleted(goals[index].title))
         }
 
         let madeProgress = isDecreasing ? (newValue < goal.currentValue) : (newValue > goal.currentValue)
@@ -385,11 +388,14 @@ class AppViewModel {
     func completeWorkout(_ workoutId: UUID) {
         guard var plan = trainingPlan,
               let index = plan.workouts.firstIndex(where: { $0.id == workoutId }) else { return }
+        let name = plan.workouts[index].name
         plan.workouts[index].isCompleted = true
         trainingPlan = plan
         rewardProgress.totalPoints += 15
+        FeedbackManager.medium()
         recordStreakActivity()
         checkAndUnlockRewards()
+        triggerCelebration(CoachCopy.workoutCompleted(name))
         saveData()
     }
 
@@ -599,6 +605,7 @@ class AppViewModel {
     private func triggerCelebration(_ message: String) {
         celebrationMessage = message
         showCelebration = true
+        FeedbackManager.success()
     }
 
     private func checkAndUnlockRewards() {

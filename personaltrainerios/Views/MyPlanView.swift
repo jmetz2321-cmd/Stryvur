@@ -60,7 +60,7 @@ struct MyPlanView: View {
             Text("No Plan Yet")
                 .font(.title2)
                 .fontWeight(.bold)
-            Text("Set a goal to receive a personalized workout, nutrition, and sleep plan.")
+            Text("Set a goal and we'll build your personalized workout, nutrition, and sleep plan.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
@@ -93,19 +93,19 @@ struct MyPlanView: View {
     }
 
     private func weekHeader(_ plan: TrainingPlan) -> some View {
-        HStack {
-            VStack(alignment: .leading) {
+        let completed = plan.workouts.filter(\.isCompleted).count
+        return HStack {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Week \(plan.weekNumber)")
                     .font(.title2)
                     .fontWeight(.bold)
-                let completed = plan.workouts.filter(\.isCompleted).count
-                Text("\(completed)/\(plan.workouts.count) workouts done")
+                Text(CoachCopy.weekProgress(completed: completed, total: plan.workouts.count))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             CircularProgress(
-                progress: Double(plan.workouts.filter(\.isCompleted).count) / Double(max(plan.workouts.count, 1)),
+                progress: Double(completed) / Double(max(plan.workouts.count, 1)),
                 color: .blue
             )
             .frame(width: 50, height: 50)
@@ -187,7 +187,7 @@ struct MyPlanView: View {
                     .font(.title3)
                     .foregroundStyle(.cyan)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Hydration")
+                    Text(CoachCopy.hydrationEncouragement(glasses: glasses, target: targetGlasses))
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     Text("\(viewModel.todayWaterOz) / \(plan.hydrationOz) oz")

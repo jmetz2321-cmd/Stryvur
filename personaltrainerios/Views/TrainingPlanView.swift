@@ -126,6 +126,7 @@ struct WorkoutDetailCard: View {
     var forceExpanded: Bool = false
     let onComplete: () -> Void
     @State private var isExpanded = false
+    @State private var checkBounce = false
 
     init(workout: Workout, forceExpanded: Bool = false, onComplete: @escaping () -> Void) {
         self.workout = workout
@@ -138,15 +139,25 @@ struct WorkoutDetailCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Button {
-                    if !workout.isCompleted { onComplete() }
+                    if !workout.isCompleted {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.4)) {
+                            checkBounce = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            checkBounce = false
+                        }
+                        onComplete()
+                    }
                 } label: {
                     Image(systemName: workout.isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.title2)
                         .foregroundStyle(workout.isCompleted ? .green : Color(.systemGray3))
+                        .scaleEffect(checkBounce ? 1.3 : 1.0)
                 }
                 .buttonStyle(.plain)
 
                 Button {
+                    FeedbackManager.light()
                     withAnimation { isExpanded.toggle() }
                 } label: {
                     HStack {

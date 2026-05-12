@@ -6,8 +6,9 @@ struct DashboardView: View {
     @State private var showHealthPermissions = false
     @State private var showManualStats = false
     @State private var showSignOutConfirm = false
-    @State private var showStreakDetail = false
+    @State private var showProgressHub = false
     @State private var quickGoalValue: String = ""
+    @State private var workoutJustCompleted = false
 
     var body: some View {
         NavigationStack {
@@ -17,6 +18,7 @@ struct DashboardView: View {
                     if !setupComplete {
                         setupChecklist
                     }
+                    progressHubCard
                     if viewModel.todayCheckIn == nil {
                         checkInPrompt
                     }
@@ -58,19 +60,6 @@ struct DashboardView: View {
                             .foregroundStyle(.blue)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        RewardsView(viewModel: viewModel)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "trophy.fill")
-                                .foregroundStyle(.yellow)
-                            Text("\(viewModel.rewardProgress.totalPoints)")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                        }
-                    }
-                }
             }
             .confirmationDialog("Sign Out?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) {
@@ -96,52 +85,23 @@ struct DashboardView: View {
             .sheet(isPresented: $showManualStats) {
                 ManualStatsSheet(viewModel: viewModel)
             }
-            .sheet(isPresented: $showStreakDetail) {
-                NavigationStack {
-                    ScrollView {
-                        StreakView(viewModel: viewModel)
-                            .padding()
-                    }
-                    .background(Color(.systemGroupedBackground))
-                    .navigationTitle("Streaks")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { showStreakDetail = false }
-                        }
-                    }
-                }
+            .sheet(isPresented: $showProgressHub) {
+                ProgressHubSheet(viewModel: viewModel)
             }
         }
     }
 
-    // MARK: - Hero Card (with quick goal log — Issue #8)
+    // MARK: - Hero Card
 
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(greetingText)
+                    Text(coachGreeting)
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("Level \(viewModel.rewardProgress.level) \u{2022} \(viewModel.rewardProgress.totalPoints) pts")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if viewModel.streakData.currentStreak > 0 {
-                    Button { showStreakDetail = true } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "flame.fill")
-                                .foregroundStyle(.orange)
-                            Text("\(viewModel.streakData.currentStreak)")
-                                .fontWeight(.bold)
-                                .foregroundStyle(.primary)
-                        }
-                        .font(.subheadline)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
 
             if let primary = viewModel.goals.first(where: { !$0.isCompleted }) {
@@ -165,8 +125,7 @@ struct DashboardView: View {
                         Text(primary.title)
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                        let direction = primary.category.isDecreasing ? "to lose" : "to go"
-                        Text("\(formatHeroValue(primary.remaining)) \(primary.unit) \(direction)")
+                        Text(CoachCopy.goalEncouragement(progress: primary.progress, title: primary.title))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -176,7 +135,7 @@ struct DashboardView: View {
                         .foregroundStyle(Color(primary.category.color))
                 }
 
-                // Quick progress log right on Dashboard
+                // Quick progress log
                 HStack(spacing: 8) {
                     HStack(spacing: 4) {
                         Image(systemName: "pencil.line")
@@ -229,7 +188,7 @@ struct DashboardView: View {
                     Image(systemName: "target")
                         .font(.title3)
                         .foregroundStyle(.blue)
-                    Text("Set a goal to see your progress here")
+                    Text(CoachCopy.noGoalsYet())
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -239,7 +198,7 @@ struct DashboardView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.title3)
                         .foregroundStyle(.green)
-                    Text("All goals completed!")
+                    Text(CoachCopy.allGoalsCompleted())
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(.green)
@@ -250,30 +209,91 @@ struct DashboardView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private var greetingText: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        let timeGreeting: String
-        if hour < 12 { timeGreeting = "Good Morning" }
-        else if hour < 17 { timeGreeting = "Good Afternoon" }
-        else { timeGreeting = "Good Evening" }
-
-        let firstName = authManager.userName.components(separatedBy: " ").first ?? ""
-        if firstName.isEmpty { return timeGreeting }
-        return "\(timeGreeting), \(firstName)"
+    private var coachGreeting: String {
+        let workoutsCompleted = viewModel.trainingPlan?.workouts.filter(\.isCompleted).count ?? 0
+        let totalWorkouts = viewModel.trainingPlan?.workouts.count ?? 0
+        return CoachCopy.greeting(
+            name: authManager.userName,
+            streak: viewModel.streakData.currentStreak,
+            workoutsCompleted: workoutsCompleted,
+            totalWorkouts: totalWorkouts,
+            hasCheckedIn: viewModel.todayCheckIn != nil
+        )
     }
 
-    private func formatHeroValue(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+    // MARK: - Consolidated Progress Hub
+
+    private var progressHubCard: some View {
+        Button {
+            FeedbackManager.light()
+            showProgressHub = true
+        } label: {
+            HStack(spacing: 14) {
+                // Level ring
+                ZStack {
+                    Circle()
+                        .stroke(Color.yellow.opacity(0.2), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: viewModel.rewardProgress.levelProgress)
+                        .stroke(Color.yellow, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text("L\(viewModel.rewardProgress.level)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(CoachCopy.streakMessage(streak: viewModel.streakData.currentStreak))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    Text("\(viewModel.rewardProgress.totalPoints) pts \u{2022} \(viewModel.rewardProgress.pointsToNextLevel) to next level")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if viewModel.streakData.currentStreak > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "flame.fill")
+                            .foregroundStyle(.orange)
+                        Text("\(viewModel.streakData.currentStreak)")
+                            .fontWeight(.bold)
+                    }
+                    .font(.subheadline)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding()
+            .background(
+                LinearGradient(
+                    colors: [Color.yellow.opacity(0.06), Color.orange.opacity(0.04)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.yellow.opacity(0.15), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
-    // MARK: - Today's Workout (Issue #5)
+    // MARK: - Today's Workout
 
     private func todayWorkoutCard(_ workout: Workout) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "calendar.badge.clock")
                     .foregroundStyle(.blue)
-                Text("Today's Workout")
+                Text(CoachCopy.todayWorkoutTitle(workout.name))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 Spacer()
@@ -288,6 +308,7 @@ struct DashboardView: View {
 
             HStack(spacing: 14) {
                 Button {
+                    FeedbackManager.light()
                     viewModel.expandWorkoutId = workout.id
                     viewModel.selectedTab = 1
                 } label: {
@@ -312,6 +333,12 @@ struct DashboardView: View {
                 Spacer()
                 Button {
                     viewModel.completeWorkout(workout.id)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                        workoutJustCompleted = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        workoutJustCompleted = false
+                    }
                 } label: {
                     Text("Done")
                         .font(.caption)
@@ -321,6 +348,7 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                .scaleEffect(workoutJustCompleted ? 1.15 : 1.0)
             }
         }
         .padding()
@@ -331,7 +359,7 @@ struct DashboardView: View {
         )
     }
 
-    // MARK: - Check-In Trends (Issue #6)
+    // MARK: - Check-In Trends
 
     private var checkInTrends: some View {
         let recent = viewModel.recentCheckIns
@@ -378,25 +406,14 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity)
             }
 
-            // Contextual insight
-            if tiredDays >= 3 {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.caption)
-                    Text("You've felt tired \(tiredDays) of the last \(recent.count) days. Consider more rest or earlier bedtimes.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if avgEnergy >= 4 {
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                    Text("Energy is high this week. Great time to push intensity.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            // Coaching insight
+            HStack(spacing: 6) {
+                Image(systemName: tiredDays >= 3 ? "exclamationmark.triangle.fill" : avgEnergy >= 4 ? "bolt.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(tiredDays >= 3 ? .orange : avgEnergy >= 4 ? .green : .blue)
+                    .font(.caption)
+                Text(CoachCopy.trendInsight(avgEnergy: avgEnergy, tiredDays: tiredDays, avgSoreness: avgSoreness))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
@@ -459,9 +476,9 @@ struct DashboardView: View {
                     .font(.title3)
                     .foregroundStyle(.blue)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Get Your Training Plan")
+                    Text("Let's Get You Set Up")
                         .font(.headline)
-                    Text("Complete these steps to unlock personalized workouts and nutrition.")
+                    Text("A couple quick steps and you'll have a personalized plan.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -483,6 +500,7 @@ struct DashboardView: View {
 
     private var checkInPrompt: some View {
         Button {
+            FeedbackManager.light()
             viewModel.showMorningCheckIn = true
         } label: {
             HStack(spacing: 12) {
@@ -494,7 +512,7 @@ struct DashboardView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
-                    Text("How are you feeling today?")
+                    Text(CoachCopy.checkInPrompt())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -615,6 +633,228 @@ struct DashboardView: View {
                     Spacer()
                 }
             }
+        }
+    }
+}
+
+// MARK: - Progress Hub Sheet (consolidated gamification)
+
+struct ProgressHubSheet: View {
+    var viewModel: AppViewModel
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    levelCard
+                    streakSection
+                    statsGrid
+                    achievementsGrid
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Your Progress")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var levelCard: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(Color.yellow.opacity(0.2), lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: viewModel.rewardProgress.levelProgress)
+                    .stroke(Color.yellow, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring, value: viewModel.rewardProgress.levelProgress)
+                VStack {
+                    Text("LEVEL")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(viewModel.rewardProgress.level)")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                }
+            }
+            .frame(width: 100, height: 100)
+
+            Text("\(viewModel.rewardProgress.totalPoints) Total Points")
+                .font(.headline)
+            Text("\(viewModel.rewardProgress.pointsToNextLevel) pts to next level")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var streakSection: some View {
+        VStack(spacing: 12) {
+            // Streak header
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(
+                            viewModel.streakData.currentStreak > 0
+                                ? LinearGradient(colors: [.orange, .red], startPoint: .top, endPoint: .bottom)
+                                : LinearGradient(colors: [Color(.systemGray4), Color(.systemGray5)], startPoint: .top, endPoint: .bottom)
+                        )
+                        .frame(width: 56, height: 56)
+                    VStack(spacing: 0) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                        Text("\(viewModel.streakData.currentStreak)")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(CoachCopy.streakMessage(streak: viewModel.streakData.currentStreak))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    if viewModel.streakData.streakIsAtRisk {
+                        Text("Streak at risk! Do something today.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                Spacer()
+            }
+
+            // Week calendar
+            HStack(spacing: 8) {
+                ForEach(weekDays(), id: \.label) { day in
+                    VStack(spacing: 4) {
+                        Text(day.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ZStack {
+                            Circle()
+                                .fill(day.isCompleted ? Color.orange : day.isToday ? Color.blue.opacity(0.2) : Color(.systemGray6))
+                                .frame(width: 32, height: 32)
+                            if day.isCompleted {
+                                Image(systemName: "checkmark")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                            } else if day.isToday {
+                                Circle()
+                                    .stroke(Color.blue, lineWidth: 2)
+                                    .frame(width: 32, height: 32)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+
+            // Streak stats
+            HStack(spacing: 0) {
+                VStack {
+                    Text("\(viewModel.streakData.longestStreak)")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    Text("Best")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                Divider().frame(height: 30)
+                VStack {
+                    Text("\(viewModel.streakData.totalActiveDays)")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    Text("Total Days")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                Divider().frame(height: 30)
+                VStack {
+                    HStack(spacing: 2) {
+                        Image(systemName: "snowflake")
+                            .font(.caption)
+                            .foregroundStyle(.cyan)
+                        Text("\(viewModel.streakData.availableFreezes)")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                    }
+                    Text("Freezes")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            if viewModel.streakData.streakIsAtRisk && viewModel.streakData.canUseFreeze {
+                Button {
+                    viewModel.useStreakFreeze()
+                    FeedbackManager.medium()
+                } label: {
+                    Label("Use Streak Freeze", systemImage: "snowflake")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.cyan)
+                .controlSize(.regular)
+            }
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var statsGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            StatBadge(title: "Goals Done", value: "\(viewModel.rewardProgress.goalsCompleted)", icon: "trophy.fill", color: .green)
+            StatBadge(title: "Milestones", value: "\(viewModel.rewardProgress.milestonesReached)", icon: "flag.fill", color: .blue)
+        }
+    }
+
+    private var achievementsGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Achievements")
+                .font(.headline)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(viewModel.rewardProgress.rewards) { reward in
+                    RewardBadge(reward: reward)
+                }
+            }
+        }
+    }
+
+    // MARK: - Week Day Helper
+
+    private struct WeekDay {
+        let label: String
+        let isCompleted: Bool
+        let isToday: Bool
+    }
+
+    private func weekDays() -> [WeekDay] {
+        let calendar = Calendar.current
+        let today = Date()
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: today) else { return [] }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: weekInterval.start)!
+            let isToday = calendar.isDateInToday(date)
+            let isCompleted = viewModel.streakData.weeklyCompletions.contains { calendar.isDate($0, inSameDayAs: date) }
+            return WeekDay(label: formatter.string(from: date), isCompleted: isCompleted, isToday: isToday)
         }
     }
 }
