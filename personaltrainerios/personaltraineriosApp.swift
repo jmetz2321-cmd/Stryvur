@@ -9,6 +9,11 @@ import SwiftUI
 
 @main
 struct personaltraineriosApp: App {
+    init() {
+        // Install notification delegate before any view loads so cold-launch taps are captured.
+        _ = NotificationCoordinator.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

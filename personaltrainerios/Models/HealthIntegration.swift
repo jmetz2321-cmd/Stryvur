@@ -67,5 +67,6 @@ struct AdaptiveInsight: Identifiable {
         case functionHealth = "Function Health"
         case checkIn = "Check-in"
         case streak = "Streak"
+        case nutrition = "Nutrition"
     }
 }

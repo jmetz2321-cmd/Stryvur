@@ -2,13 +2,31 @@ import SwiftUI
 
 struct MyPlanView: View {
     var viewModel: AppViewModel
+    var subscriptionManager: SubscriptionManager
     @State private var selectedSegment: PlanSegment = .workouts
     @State private var showAddFood = false
+    @State private var showMealPlan = false
+    @State private var showFoodLog = false
+    @State private var showHistory = false
 
     enum PlanSegment: String, CaseIterable {
         case workouts = "Workouts"
         case nutrition = "Nutrition"
         case sleep = "Sleep"
+    }
+
+    private func applyRoute(_ route: String?) {
+        guard let route else { return }
+        switch route {
+        case "workouts": selectedSegment = .workouts
+        case "nutrition": selectedSegment = .nutrition
+        case "sleep": selectedSegment = .sleep
+        default: break
+        }
+        // Clear so the same route doesn't re-trigger on every recompose
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            viewModel.planSegmentRoute = nil
+        }
     }
 
     var body: some View {
@@ -43,6 +61,15 @@ struct MyPlanView: View {
                 .sheet(isPresented: $showAddFood) {
                     AddFoodSheet(viewModel: viewModel)
                 }
+                .sheet(isPresented: $showHistory) {
+                    WorkoutHistoryView(viewModel: viewModel)
+                }
+                .onChange(of: viewModel.planSegmentRoute) { _, route in
+                    applyRoute(route)
+                }
+                .task {
+                    applyRoute(viewModel.planSegmentRoute)
+                }
             } else {
                 emptyState
                     .navigationTitle("My Plan")
@@ -75,6 +102,7 @@ struct MyPlanView: View {
         Group {
             if let plan = viewModel.trainingPlan {
                 weekHeader(plan)
+                historyButton
                 ForEach(plan.workouts) { workout in
                     WorkoutDetailCard(workout: workout, forceExpanded: viewModel.expandWorkoutId == workout.id) {
                         viewModel.completeWorkout(workout.id)
@@ -90,6 +118,54 @@ struct MyPlanView: View {
                 }
             }
         }
+    }
+
+    private var historyButton: some View {
+        let isLocked = !subscriptionManager.hasFullAccess
+        return Button {
+            FeedbackManager.light()
+            if isLocked {
+                viewModel.activeSheet = .paywall
+            } else {
+                showHistory = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isLocked ? "lock.fill" : "clock.arrow.circlepath")
+                    .foregroundStyle(isLocked ? .purple : .blue)
+                    .font(.title3)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Workout History")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    if isLocked {
+                        Text("Subscribe to view your full workout history")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if viewModel.workoutHistory.isEmpty {
+                        Text("Your completed workouts will appear here")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(viewModel.workoutHistory.count) completed workouts")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding()
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isLocked ? "Workout History, locked. Tap to subscribe." : "Workout History, \(viewModel.workoutHistory.count) completed workouts")
     }
 
     private func weekHeader(_ plan: TrainingPlan) -> some View {
@@ -209,13 +285,14 @@ struct MyPlanView: View {
                     viewModel.removeWater(8)
                 } label: {
                     Image(systemName: "minus")
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.bold)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .background(Color(.systemGray5), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.todayWaterOz == 0)
+                .accessibilityLabel("Remove 8 ounces of water")
 
                 // Glass icons
                 HStack(spacing: 4) {
@@ -230,14 +307,16 @@ struct MyPlanView: View {
                     viewModel.addWater(8)
                 } label: {
                     Image(systemName: "plus")
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .background(.cyan, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Add 8 ounces of water")
             }
+            .accessibilityElement(children: .contain)
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -245,19 +324,33 @@ struct MyPlanView: View {
 
     private func mealsSection(_ plan: NutritionPlan) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Meal Plan")
-                    .font(.headline)
-                Spacer()
-                let checked = plan.meals.filter { viewModel.checkedMeals.contains($0.id.uuidString) }.count
-                Text("\(checked)/\(plan.meals.count)")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+            Button {
+                FeedbackManager.light()
+                withAnimation { showMealPlan.toggle() }
+            } label: {
+                HStack {
+                    Text("Meal Plan")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    let checked = plan.meals.filter { viewModel.checkedMeals.contains($0.id.uuidString) }.count
+                    Text("\(checked)/\(plan.meals.count)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(showMealPlan ? 90 : 0))
+                }
             }
-            ForEach(plan.meals) { meal in
-                MealRow(meal: meal, isChecked: viewModel.checkedMeals.contains(meal.id.uuidString)) {
-                    viewModel.toggleMealChecked(meal.id.uuidString)
+            .buttonStyle(.plain)
+
+            if showMealPlan {
+                ForEach(plan.meals) { meal in
+                    MealRow(meal: meal, isChecked: viewModel.checkedMeals.contains(meal.id.uuidString)) {
+                        viewModel.toggleMealChecked(meal.id.uuidString)
+                    }
                 }
             }
         }
@@ -266,8 +359,26 @@ struct MyPlanView: View {
     private var foodLogSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Food Log")
-                    .font(.headline)
+                Button {
+                    FeedbackManager.light()
+                    withAnimation { showFoodLog.toggle() }
+                } label: {
+                    HStack {
+                        Text("Food Log")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        if !viewModel.todayFoodLog.isEmpty {
+                            Text("(\(viewModel.todayFoodLog.count))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(showFoodLog ? 90 : 0))
+                    }
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 Button {
                     showAddFood = true
@@ -277,6 +388,8 @@ struct MyPlanView: View {
                         .fontWeight(.medium)
                 }
             }
+
+            if showFoodLog {
 
             if viewModel.todayFoodLog.isEmpty {
                 HStack {
@@ -338,6 +451,7 @@ struct MyPlanView: View {
                         .fontWeight(.bold)
                 }
                 .padding(.horizontal, 4)
+            }
             }
         }
     }

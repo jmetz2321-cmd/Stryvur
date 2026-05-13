@@ -206,30 +206,50 @@ struct WorkoutDetailCard: View {
 
 struct ExerciseRow: View {
     let exercise: Exercise
+    @State private var showDetail = false
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(exercise.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if let notes = exercise.notes {
-                    Text(notes)
+        Button {
+            FeedbackManager.light()
+            showDetail = true
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(exercise.name)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.primary)
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                            .accessibilityHidden(true)
+                    }
+                    if let notes = exercise.notes {
+                        Text(notes)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(exercise.sets) \u{00D7} \(exercise.reps)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("\(exercise.restSeconds)s rest")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(exercise.sets) \u{00D7} \(exercise.reps)")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text("\(exercise.restSeconds)s rest")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 6)
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(exercise.name), \(exercise.sets) sets of \(exercise.reps), \(exercise.restSeconds) seconds rest")
+        .accessibilityHint("Tap to see how to perform this exercise")
+        .sheet(isPresented: $showDetail) {
+            ExerciseDetailView(exercise: exercise)
+        }
     }
 }
 

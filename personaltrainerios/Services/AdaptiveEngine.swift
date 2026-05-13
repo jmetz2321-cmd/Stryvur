@@ -198,21 +198,26 @@ struct AdaptiveEngine {
 
     static func adaptNutrition(_ plan: NutritionPlan, checkIn: DailyCheckIn?, healthSnapshot: HealthSnapshot?, goal: UserGoal?) -> NutritionPlan {
         var adapted = plan
+        let isWeightLoss = goal?.category == .weightLoss
 
         // Adapt based on check-in
         if let checkIn {
-            // Poor sleep — add carbs for energy, increase hydration
+            // Poor sleep — bump hydration, small carb boost (but don't raise calories for weight loss)
             if checkIn.sleepRating <= 2 {
-                adapted.carbsGrams += 30
                 adapted.hydrationOz = max(adapted.hydrationOz, 88)
-                adapted.dailyCalories = recalcCalories(adapted)
+                if !isWeightLoss {
+                    adapted.carbsGrams += 30
+                    adapted.dailyCalories = recalcCalories(adapted)
+                }
             }
 
-            // High soreness — increase protein for recovery
+            // High soreness — increase protein for recovery (redistribute from carbs to keep cals stable)
             if checkIn.sorenessLevel >= 3 {
                 adapted.proteinGrams += 20
+                if isWeightLoss {
+                    adapted.carbsGrams = max(100, adapted.carbsGrams - 20)
+                }
                 adapted.dailyCalories = recalcCalories(adapted)
-                // Swap meal foods for recovery-focused options
                 adapted.meals = adapted.meals.map { meal in
                     if meal.name == "Snack" || meal.name == "Evening Snack" || meal.name == "Before Bed" {
                         var m = meal
@@ -224,61 +229,60 @@ struct AdaptiveEngine {
                 }
             }
 
-            // Low energy — boost calories slightly
-            if checkIn.energyLevel <= 2 {
+            // Low energy — for weight loss keep calories steady; for others, small bump
+            if checkIn.energyLevel <= 2 && !isWeightLoss {
                 adapted.dailyCalories += 150
                 adapted.carbsGrams += 20
             }
 
             // Feeling great — can tighten deficit for weight loss
-            if checkIn.mood == .great && checkIn.energyLevel >= 4 {
-                if let goal, goal.category == .weightLoss {
-                    adapted.dailyCalories = max(1400, adapted.dailyCalories - 100)
-                }
+            if checkIn.mood == .great && checkIn.energyLevel >= 4 && isWeightLoss {
+                adapted.dailyCalories = max(1400, adapted.dailyCalories - 100)
             }
         }
 
         // Adapt based on health snapshot
         if let snapshot = healthSnapshot {
-            // Poor sleep from Apple Health
+            // Poor sleep from Apple Health — boost hydration, not calories
             if snapshot.sleepHours > 0 && snapshot.sleepHours < 5 {
-                adapted.carbsGrams += 40
                 adapted.hydrationOz = max(adapted.hydrationOz, 96)
-                adapted.dailyCalories = recalcCalories(adapted)
+                if !isWeightLoss {
+                    adapted.carbsGrams += 40
+                    adapted.dailyCalories = recalcCalories(adapted)
+                }
             } else if snapshot.sleepHours >= 5 && snapshot.sleepHours < 6 {
-                adapted.carbsGrams += 20
                 adapted.hydrationOz = max(adapted.hydrationOz, 88)
-                adapted.dailyCalories = recalcCalories(adapted)
+                if !isWeightLoss {
+                    adapted.carbsGrams += 20
+                    adapted.dailyCalories = recalcCalories(adapted)
+                }
             }
 
-            // Elevated HR — stress response, boost hydration and magnesium-rich foods
+            // Elevated HR — stress response, boost hydration
             if snapshot.restingHeartRate > 80 {
                 adapted.hydrationOz = max(adapted.hydrationOz, 90)
             }
 
-            // Very active day — increase calories to fuel activity
-            if snapshot.caloriesBurned > 500 {
-                let extraCals = Int((snapshot.caloriesBurned - 300) * 0.5)
+            // Active day — for muscle gain, add fuel. For weight loss, DO NOT increase calories.
+            if snapshot.caloriesBurned > 500 && !isWeightLoss {
+                let extraCals = Int((snapshot.caloriesBurned - 300) * 0.4)
                 adapted.dailyCalories += extraCals
                 adapted.carbsGrams += extraCals / 8
             }
 
-            // Weight-based protein and calorie calculation
+            // Weight-based protein calculation
             if let weight = snapshot.weight, let goal {
                 switch goal.category {
                 case .muscleGain:
-                    let targetProtein = Int(weight * 1.0)
-                    adapted.proteinGrams = max(adapted.proteinGrams, targetProtein)
-                    let targetCals = Int(weight * 18)
-                    adapted.dailyCalories = max(adapted.dailyCalories, targetCals)
+                    adapted.proteinGrams = max(adapted.proteinGrams, Int(weight * 1.0))
+                    adapted.dailyCalories = max(adapted.dailyCalories, Int(weight * 18))
                 case .weightLoss:
-                    let targetProtein = Int(weight * 0.8)
-                    adapted.proteinGrams = max(adapted.proteinGrams, targetProtein)
-                    let targetCals = Int(weight * 12)
-                    adapted.dailyCalories = max(1400, min(targetCals, adapted.dailyCalories))
+                    adapted.proteinGrams = max(adapted.proteinGrams, Int(weight * 0.8))
+                    // Cap calories — never exceed the plan target for weight loss
+                    let cap = Int(weight * 12)
+                    adapted.dailyCalories = max(1400, min(cap, adapted.dailyCalories))
                 default:
-                    let targetProtein = Int(weight * 0.7)
-                    adapted.proteinGrams = max(adapted.proteinGrams, targetProtein)
+                    adapted.proteinGrams = max(adapted.proteinGrams, Int(weight * 0.7))
                 }
                 adapted.dailyCalories = recalcCalories(adapted)
             }
@@ -300,12 +304,12 @@ struct AdaptiveEngine {
             if checkIn.sleepRating <= 2 || checkIn.mood == .tired || checkIn.mood == .awful {
                 adapted.targetHours = max(adapted.targetHours, 9.0)
                 adapted.bedtime = "9:30 PM"
-                adapted.tips.insert("You reported poor sleep — prioritize an earlier bedtime tonight", at: 0)
+                adapted.tips.insert("You reported poor sleep. Prioritize an earlier bedtime tonight", at: 0)
             }
 
             if checkIn.sorenessLevel >= 4 {
                 adapted.targetHours = max(adapted.targetHours, 8.5)
-                adapted.tips.insert("High soreness — extra sleep boosts muscle recovery and growth hormone", at: 0)
+                adapted.tips.insert("High soreness detected. Extra sleep boosts muscle recovery and growth hormone", at: 0)
             }
         }
 
@@ -313,11 +317,11 @@ struct AdaptiveEngine {
             if snapshot.sleepHours > 0 && snapshot.sleepHours < 6 {
                 adapted.targetHours = max(adapted.targetHours, 9.0)
                 adapted.bedtime = "9:30 PM"
-                adapted.tips.insert("You slept \(String(format: "%.1f", snapshot.sleepHours))h last night — aim for more tonight", at: 0)
+                adapted.tips.insert("You slept \(String(format: "%.1f", snapshot.sleepHours))h last night. Aim for more tonight", at: 0)
             }
 
             if snapshot.restingHeartRate > 80 {
-                adapted.tips.insert("Elevated resting HR — deep breathing before bed can help lower stress", at: 0)
+                adapted.tips.insert("Elevated resting HR. Deep breathing before bed can help lower stress", at: 0)
             }
         }
 
@@ -331,67 +335,212 @@ struct AdaptiveEngine {
 
     // MARK: - Insights
 
-    static func generateInsights(checkIn: DailyCheckIn?, healthSnapshot: HealthSnapshot?, functionVitals: FunctionHealthVitals?, streakData: StreakData) -> [AdaptiveInsight] {
+    static func generateInsights(
+        checkIn: DailyCheckIn?,
+        healthSnapshot: HealthSnapshot?,
+        functionVitals: FunctionHealthVitals?,
+        streakData: StreakData,
+        caloriesLogged: Int = 0,
+        calorieTarget: Int = 0,
+        waterOz: Int = 0,
+        waterTarget: Int = 0,
+        isWeightLossGoal: Bool = false
+    ) -> [AdaptiveInsight] {
         var insights: [AdaptiveInsight] = []
 
+        // Calorie & hydration insights first — most actionable
+        insights.append(contentsOf: nutritionInsights(
+            caloriesLogged: caloriesLogged,
+            calorieTarget: calorieTarget,
+            waterOz: waterOz,
+            waterTarget: waterTarget,
+            isWeightLoss: isWeightLossGoal
+        ))
+
         if let checkIn {
-            insights.append(contentsOf: checkInInsights(checkIn))
+            insights.append(contentsOf: checkInInsights(checkIn, snapshot: healthSnapshot))
         }
         if let snapshot = healthSnapshot {
-            insights.append(contentsOf: healthInsights(snapshot))
+            insights.append(contentsOf: healthInsights(snapshot, isWeightLoss: isWeightLossGoal))
         }
         if let vitals = functionVitals {
             insights.append(contentsOf: biomarkerInsights(vitals))
         }
-        insights.append(contentsOf: streakInsights(streakData))
+
+        // Streak — only if at risk
+        if streakData.streakIsAtRisk {
+            insights.append(AdaptiveInsight(
+                title: "Don't Break the Chain",
+                message: "Your \(streakData.currentStreak)-day streak is on the line. A check-in or workout saves it.",
+                icon: "flame.fill",
+                color: "orange",
+                source: .streak
+            ))
+        }
+
+        // Baseline coaching when no other signals are available
+        if insights.isEmpty {
+            insights.append(baselineInsight(isWeightLoss: isWeightLossGoal))
+        }
+
+        // Cap at 4 most relevant
+        return Array(insights.prefix(4))
+    }
+
+    /// Time-of-day generic coaching when there's no personalized signal yet.
+    private static func baselineInsight(isWeightLoss: Bool) -> AdaptiveInsight {
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour < 11 {
+            return AdaptiveInsight(
+                title: "Start the Day Right",
+                message: isWeightLoss
+                    ? "Get 15 minutes of light movement in the morning. It primes your metabolism and curbs afternoon cravings."
+                    : "A glass of water and 10 minutes of mobility work first thing pays back all day.",
+                icon: "sun.max.fill",
+                color: "yellow",
+                source: .nutrition
+            )
+        } else if hour < 15 {
+            return AdaptiveInsight(
+                title: "Stay Steady",
+                message: "Mid-day energy dips are usually dehydration, not hunger. Drink a glass of water before reaching for a snack.",
+                icon: "drop.fill",
+                color: "cyan",
+                source: .nutrition
+            )
+        } else if hour < 20 {
+            return AdaptiveInsight(
+                title: "Finish Strong",
+                message: isWeightLoss
+                    ? "Most of your daily calories should be earlier in the day. Keep dinner protein-forward and light on carbs."
+                    : "Post-workout is your best window for protein. Aim for 25-30g within an hour of training.",
+                icon: "bolt.fill",
+                color: "orange",
+                source: .nutrition
+            )
+        } else {
+            return AdaptiveInsight(
+                title: "Wind Down",
+                message: "Screens within an hour of bed lower melatonin by 50%. Dim your phone and set it down 60 minutes before sleep.",
+                icon: "moon.fill",
+                color: "indigo",
+                source: .checkIn
+            )
+        }
+    }
+
+    // MARK: - Nutrition & Hydration Insights
+
+    private static func nutritionInsights(caloriesLogged: Int, calorieTarget: Int, waterOz: Int, waterTarget: Int, isWeightLoss: Bool) -> [AdaptiveInsight] {
+        var insights: [AdaptiveInsight] = []
+        let hour = Calendar.current.component(.hour, from: Date())
+
+        if calorieTarget > 0 && caloriesLogged > 0 {
+            let ratio = Double(caloriesLogged) / Double(calorieTarget)
+
+            if caloriesLogged > calorieTarget {
+                let over = caloriesLogged - calorieTarget
+                insights.append(AdaptiveInsight(
+                    title: "Over Calorie Target",
+                    message: "You're \(over) cal over your \(calorieTarget) daily target. \(isWeightLoss ? "This slows your weight loss. Consider a lighter dinner or a walk to offset." : "Try to keep dinner light to balance it out.")",
+                    icon: "exclamationmark.triangle.fill",
+                    color: "red",
+                    source: .nutrition
+                ))
+            } else if ratio >= 0.85 && hour < 18 {
+                let remaining = calorieTarget - caloriesLogged
+                insights.append(AdaptiveInsight(
+                    title: "Watch Your Calories",
+                    message: "Only \(remaining) cal left and it's not dinner yet. Go for protein and veggies to stay full without going over.",
+                    icon: "fork.knife",
+                    color: "orange",
+                    source: .nutrition
+                ))
+            } else if ratio >= 0.85 && hour >= 18 {
+                let remaining = calorieTarget - caloriesLogged
+                insights.append(AdaptiveInsight(
+                    title: "Finish Strong",
+                    message: "\(remaining) cal left for the evening. A light meal like grilled chicken and salad would fit perfectly.",
+                    icon: "fork.knife",
+                    color: "green",
+                    source: .nutrition
+                ))
+            }
+        }
+
+        if waterTarget > 0 {
+            let glasses = waterOz / 8
+            let targetGlasses = waterTarget / 8
+            let remaining = targetGlasses - glasses
+
+            if remaining > 0 && hour >= 15 {
+                insights.append(AdaptiveInsight(
+                    title: "Drink Up",
+                    message: "\(remaining) glass\(remaining == 1 ? "" : "es") to go. Dehydration kills energy and slows recovery, so keep a bottle nearby.",
+                    icon: "drop.fill",
+                    color: "cyan",
+                    source: .nutrition
+                ))
+            } else if remaining > 0 && hour >= 12 {
+                insights.append(AdaptiveInsight(
+                    title: "Stay Hydrated",
+                    message: "You're at \(glasses)/\(targetGlasses) glasses. Try to finish at least \(min(remaining, 3)) more before the afternoon's over.",
+                    icon: "drop.fill",
+                    color: "cyan",
+                    source: .nutrition
+                ))
+            } else if remaining <= 0 && waterOz > 0 {
+                insights.append(AdaptiveInsight(
+                    title: "Hydration On Point",
+                    message: "Water target hit! Your muscles and recovery thank you.",
+                    icon: "drop.fill",
+                    color: "green",
+                    source: .nutrition
+                ))
+            }
+        }
 
         return insights
     }
 
-    private static func checkInInsights(_ checkIn: DailyCheckIn) -> [AdaptiveInsight] {
+    // MARK: - Check-In Insights
+
+    private static func checkInInsights(_ checkIn: DailyCheckIn, snapshot: HealthSnapshot?) -> [AdaptiveInsight] {
         var insights: [AdaptiveInsight] = []
 
         if checkIn.shouldSwapToRecovery {
             insights.append(AdaptiveInsight(
-                title: "Recovery Day Activated",
-                message: "Your body needs rest. We've replaced today's workout with a recovery session — stretching, foam rolling, and light movement.",
+                title: "Take It Easy Today",
+                message: "You're feeling rough, and that's okay. Today's been swapped to stretching and light movement. Recovery IS training.",
                 icon: "bed.double.fill",
                 color: "indigo",
-                actionLabel: "View Adjusted Plan",
                 source: .checkIn
             ))
         } else if checkIn.shouldReduceIntensity {
+            let reason = checkIn.sorenessLevel >= 4 ? "soreness is high" : checkIn.energyLevel <= 2 ? "energy is low" : "sleep was rough"
             insights.append(AdaptiveInsight(
-                title: "Intensity Adjusted",
-                message: "Based on your energy and soreness, we've reduced today's sets and added extra rest between exercises.",
+                title: "Scaled Back Today",
+                message: "Your \(reason), so today's workout has fewer sets and longer rest. Smart training means knowing when to pull back.",
                 icon: "arrow.down.circle.fill",
                 color: "orange",
                 source: .checkIn
             ))
         } else if checkIn.mood == .great && checkIn.energyLevel >= 4 {
             insights.append(AdaptiveInsight(
-                title: "Push Day!",
-                message: "You're feeling strong — we've added an extra set per exercise and shortened rest. Time to make gains!",
+                title: "You're Feeling It Today",
+                message: "Energy's up and body feels good. Today's a great day to push. Extra sets added to your workout.",
                 icon: "bolt.fill",
                 color: "green",
                 source: .checkIn
             ))
         }
 
-        if checkIn.sorenessLevel >= 3 {
-            insights.append(AdaptiveInsight(
-                title: "Recovery Nutrition Activated",
-                message: "High soreness detected. We've increased protein by 20g and added recovery snacks to your meal plan.",
-                icon: "figure.flexibility",
-                color: "purple",
-                source: .checkIn
-            ))
-        }
-
         if checkIn.sleepRating <= 2 {
+            let sleepHours = snapshot?.sleepHours
+            let sleepStr = sleepHours.map { String(format: "%.1f", $0) + "h last night" } ?? "poor sleep"
             insights.append(AdaptiveInsight(
-                title: "Sleep Recovery Mode",
-                message: "Poor sleep reported. Added extra carbs for energy and moved bedtime earlier tonight.",
+                title: "Prioritize Sleep Tonight",
+                message: "You reported \(sleepStr). Aim for bed by 10 PM. Even 30 extra minutes makes a measurable difference in recovery.",
                 icon: "moon.zzz.fill",
                 color: "indigo",
                 source: .checkIn
@@ -401,139 +550,122 @@ struct AdaptiveEngine {
         return insights
     }
 
-    private static func healthInsights(_ snapshot: HealthSnapshot) -> [AdaptiveInsight] {
+    // MARK: - Health Data Insights
+
+    private static func healthInsights(_ snapshot: HealthSnapshot, isWeightLoss: Bool) -> [AdaptiveInsight] {
         var insights: [AdaptiveInsight] = []
 
+        // Sleep
         if snapshot.sleepHours > 0 && snapshot.sleepHours < 5 {
             insights.append(AdaptiveInsight(
-                title: "Very Low Sleep",
-                message: "Only \(String(format: "%.1f", snapshot.sleepHours))h of sleep. Today's workout is set to recovery mode and we've boosted carbs for energy.",
+                title: "Sleep Was Really Low",
+                message: "Only \(String(format: "%.1f", snapshot.sleepHours))h. Workout intensity is reduced. Don't force it today. Focus on hydration and getting to bed earlier tonight.",
                 icon: "moon.zzz.fill",
                 color: "red",
                 source: .appleHealth
             ))
-        } else if snapshot.sleepHours >= 5 && snapshot.sleepHours < 6 {
+        } else if snapshot.sleepHours >= 5 && snapshot.sleepHours < 6.5 {
             insights.append(AdaptiveInsight(
-                title: "Low Sleep",
-                message: "\(String(format: "%.1f", snapshot.sleepHours))h of sleep. Intensity reduced and extra hydration added to your plan.",
+                title: "Could Use More Sleep",
+                message: "\(String(format: "%.1f", snapshot.sleepHours))h isn't enough for full recovery. Your plan's adjusted, but try to get 7+ tonight.",
                 icon: "moon.zzz.fill",
                 color: "orange",
                 source: .appleHealth
             ))
         } else if snapshot.sleepHours >= 8 {
             insights.append(AdaptiveInsight(
-                title: "Great Sleep!",
-                message: "\(String(format: "%.1f", snapshot.sleepHours))h of quality rest. Your body is primed for a strong workout today.",
+                title: "Well Rested",
+                message: "\(String(format: "%.1f", snapshot.sleepHours))h of sleep. Your body is recovered and ready. Great day to push hard.",
                 icon: "moon.stars.fill",
-                color: "blue",
+                color: "green",
                 source: .appleHealth
             ))
         }
 
+        // Resting HR
         if snapshot.restingHeartRate > 85 {
             insights.append(AdaptiveInsight(
-                title: "High Resting HR",
-                message: "Resting HR of \(Int(snapshot.restingHeartRate)) bpm suggests stress or under-recovery. Today's session is lightened.",
+                title: "Resting HR Is High",
+                message: "\(Int(snapshot.restingHeartRate)) bpm is elevated. Could be stress, poor sleep, or overtraining. Today's workout is lighter. Try 5 minutes of deep breathing.",
                 icon: "heart.fill",
                 color: "red",
                 source: .appleHealth
             ))
         } else if snapshot.restingHeartRate > 75 {
             insights.append(AdaptiveInsight(
-                title: "Elevated Resting HR",
-                message: "Resting HR at \(Int(snapshot.restingHeartRate)) bpm — slightly elevated. Keeping intensity moderate today.",
+                title: "HR Slightly Elevated",
+                message: "Resting HR at \(Int(snapshot.restingHeartRate)) bpm. Not alarming, but worth monitoring. Staying hydrated and managing stress helps.",
                 icon: "heart.fill",
                 color: "orange",
                 source: .appleHealth
             ))
         }
 
-        if snapshot.caloriesBurned > 500 {
-            insights.append(AdaptiveInsight(
-                title: "High Activity Day",
-                message: "You've burned \(Int(snapshot.caloriesBurned)) active calories. We've increased today's calorie target to keep you fueled.",
-                icon: "flame.fill",
-                color: "orange",
-                source: .appleHealth
-            ))
-        }
-
+        // Steps / activity
         if snapshot.steps > 12000 {
             insights.append(AdaptiveInsight(
-                title: "Very Active!",
-                message: "\(snapshot.steps.formatted()) steps today. Your workout has been shortened since you're already well-moved.",
+                title: "Super Active Day",
+                message: "\(snapshot.steps.formatted()) steps already. Your workout is shortened since you've already earned the movement credit.",
                 icon: "figure.walk",
                 color: "green",
                 source: .appleHealth
             ))
-        }
-
-        return insights
-    }
-
-    private static func biomarkerInsights(_ vitals: FunctionHealthVitals) -> [AdaptiveInsight] {
-        var insights: [AdaptiveInsight] = []
-
-        let flagged = vitals.biomarkers.filter { $0.status != .normal }
-        if !flagged.isEmpty {
-            let lowIron = flagged.first { $0.name.lowercased().contains("iron") || $0.name.lowercased().contains("ferritin") }
-            if let iron = lowIron, iron.status == .low {
-                insights.append(AdaptiveInsight(
-                    title: "Low Iron Levels",
-                    message: "Iron-rich foods have been prioritized in your meal plan. Consider consulting your doctor.",
-                    icon: "drop.fill",
-                    color: "red",
-                    source: .functionHealth
-                ))
-            }
-
-            let vitD = flagged.first { $0.name.lowercased().contains("vitamin d") }
-            if let d = vitD, d.status == .low {
-                insights.append(AdaptiveInsight(
-                    title: "Low Vitamin D",
-                    message: "Supports bone health and recovery. Consider supplementation and morning sunlight.",
-                    icon: "sun.max.fill",
-                    color: "yellow",
-                    source: .functionHealth
-                ))
-            }
-
-            let inflammation = flagged.first { $0.name.lowercased().contains("crp") || $0.name.lowercased().contains("inflammation") }
-            if let inf = inflammation, inf.status == .high {
-                insights.append(AdaptiveInsight(
-                    title: "Elevated Inflammation",
-                    message: "Anti-inflammatory foods and extra recovery are prioritized in your plan.",
-                    icon: "exclamationmark.triangle.fill",
-                    color: "orange",
-                    source: .functionHealth
-                ))
-            }
-        }
-
-        return insights
-    }
-
-    private static func streakInsights(_ streak: StreakData) -> [AdaptiveInsight] {
-        var insights: [AdaptiveInsight] = []
-
-        if streak.streakIsAtRisk {
+        } else if snapshot.steps > 0 && snapshot.steps < 3000 && Calendar.current.component(.hour, from: Date()) >= 14 {
             insights.append(AdaptiveInsight(
-                title: "Streak at Risk!",
-                message: "Your \(streak.currentStreak)-day streak is about to break. Any activity today keeps it alive!",
-                icon: "flame.fill",
+                title: "Get Moving",
+                message: "Only \(snapshot.steps.formatted()) steps so far. Even a 15-minute walk improves mood, digestion, and sleep quality.",
+                icon: "figure.walk",
                 color: "orange",
-                actionLabel: "Save Streak",
-                source: .streak
+                source: .appleHealth
             ))
         }
 
-        if streak.currentStreak > 0 && streak.currentStreak % 7 == 0 {
+        // Active calories — context for weight loss, not a reason to eat more
+        if snapshot.caloriesBurned > 500 && isWeightLoss {
             insights.append(AdaptiveInsight(
-                title: "\(streak.currentStreak)-Day Streak!",
-                message: "Incredible consistency! You've earned a streak freeze.",
-                icon: "crown.fill",
+                title: "Solid Burn Today",
+                message: "\(Int(snapshot.caloriesBurned)) active cal burned. Your calorie target stays the same. That burn is working toward your deficit. Don't eat it back.",
+                icon: "flame.fill",
+                color: "green",
+                source: .appleHealth
+            ))
+        } else if snapshot.caloriesBurned > 500 {
+            insights.append(AdaptiveInsight(
+                title: "High Activity",
+                message: "\(Int(snapshot.caloriesBurned)) active cal burned. Make sure you're fueling with enough protein to support recovery.",
+                icon: "flame.fill",
+                color: "blue",
+                source: .appleHealth
+            ))
+        }
+
+        return insights
+    }
+
+    // MARK: - Biomarker Insights
+
+    private static func biomarkerInsights(_ vitals: FunctionHealthVitals) -> [AdaptiveInsight] {
+        var insights: [AdaptiveInsight] = []
+        let flagged = vitals.biomarkers.filter { $0.status != .normal }
+        guard !flagged.isEmpty else { return insights }
+
+        if let iron = flagged.first(where: { $0.name.lowercased().contains("iron") || $0.name.lowercased().contains("ferritin") }), iron.status == .low {
+            insights.append(AdaptiveInsight(
+                title: "Low Iron",
+                message: "Low iron hurts energy and endurance. Add red meat, spinach, or lentils. Talk to your doctor about supplementing.",
+                icon: "drop.fill",
+                color: "red",
+                source: .functionHealth
+            ))
+        }
+
+        if let d = flagged.first(where: { $0.name.lowercased().contains("vitamin d") }), d.status == .low {
+            insights.append(AdaptiveInsight(
+                title: "Low Vitamin D",
+                message: "Vitamin D supports bone health and recovery. Get 15 min of morning sun and consider a D3 supplement.",
+                icon: "sun.max.fill",
                 color: "yellow",
-                source: .streak
+                source: .functionHealth
             ))
         }
 

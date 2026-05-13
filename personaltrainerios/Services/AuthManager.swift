@@ -106,6 +106,33 @@ class AuthManager {
         UserDefaults.standard.removeObject(forKey: "userEmail")
     }
 
+    /// Permanently deletes the user's account and all associated data.
+    /// Apple Guideline 5.1.1(v) requires this be available in-app.
+    func deleteAccount() async {
+        guard !userID.isEmpty else { return }
+        // Best-effort: delete server data, then sign out locally.
+        do {
+            try await client.from("goals").delete().eq("user_id", value: userID).execute()
+            try await client.from("check_ins").delete().eq("user_id", value: userID).execute()
+            try await client.from("food_log").delete().eq("user_id", value: userID).execute()
+            try await client.from("streak_data").delete().eq("user_id", value: userID).execute()
+            try await client.from("manual_stats").delete().eq("user_id", value: userID).execute()
+            try await client.from("checked_meals").delete().eq("user_id", value: userID).execute()
+        } catch {
+            print("Account data deletion error: \(error)")
+        }
+
+        // Wipe all local storage
+        let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
+        for key in allKeys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+
+        await MainActor.run {
+            signOut()
+        }
+    }
+
     private func loadUser() {
         userID = UserDefaults.standard.string(forKey: "appleUserID") ?? ""
         userName = UserDefaults.standard.string(forKey: "userName") ?? ""

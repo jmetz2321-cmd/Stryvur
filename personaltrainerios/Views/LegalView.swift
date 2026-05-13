@@ -1,0 +1,151 @@
+import SwiftUI
+
+enum LegalDocument: String, Identifiable {
+    case privacy = "Privacy Policy"
+    case terms = "Terms of Use"
+    var id: String { rawValue }
+}
+
+struct LegalView: View {
+    let document: LegalDocument
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(document.rawValue)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    Text("Last updated: November 2026")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Divider()
+                    Text(content)
+                        .font(.body)
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var content: String {
+        switch document {
+        case .privacy: return privacyText
+        case .terms: return termsText
+        }
+    }
+
+    private var privacyText: String {
+        """
+        Longivor respects your privacy. This document explains what data we collect, how we use it, and your rights.
+
+        WHAT WE COLLECT
+
+        • Account information: Your Apple ID identifier and name (provided when you sign in with Apple).
+        • Fitness data: Goals, check-ins, completed workouts, food logs, water intake, and other in-app entries.
+        • Apple Health data: With your permission, we read steps, sleep, heart rate, resting heart rate, active calories, exercise minutes, weight, and body fat percentage.
+        • Behavior patterns: Approximate times of day you check in, complete workouts, and log meals. This powers adaptive notifications.
+
+        HOW WE USE YOUR DATA
+
+        • To personalize your training plan, nutrition recommendations, and sleep guidance.
+        • To generate Coach's Notes and adapt your plan based on your check-ins and health data.
+        • To send notifications at times that match your patterns.
+        • To sync your data across devices through your account.
+
+        WHAT WE DO NOT DO
+
+        • We do not sell your data to third parties.
+        • We do not use your health data for advertising.
+        • We do not share Apple Health data with anyone outside the app.
+        • We do not access your data when the app is closed beyond what's needed to refresh notifications and sync.
+
+        WHERE YOUR DATA LIVES
+
+        • Apple Health data stays on your device and is only read when you use the app.
+        • Account and fitness data is stored on our backend (Supabase) and is associated with your account ID.
+
+        YOUR RIGHTS
+
+        • Disconnect Apple Health anytime from the Health section on the Dashboard.
+        • Toggle individual health metrics on or off.
+        • Delete your account and all associated data from the Help & FAQ section. Deletion is permanent and cannot be undone.
+
+        CHILDREN
+
+        Longivor is not intended for users under 13. We do not knowingly collect data from children.
+
+        CHANGES TO THIS POLICY
+
+        We may update this policy from time to time. Material changes will be highlighted in the app.
+
+        QUESTIONS
+
+        For questions about this policy, please review the latest version in the Help section of the app.
+        """
+    }
+
+    private var termsText: String {
+        """
+        By using Longivor, you agree to these terms.
+
+        ACCEPTANCE
+
+        Using this app means you agree to these Terms of Use. If you do not agree, please do not use the app.
+
+        ACCOUNT
+
+        You are responsible for maintaining the confidentiality of your Apple ID and for all activity under your account.
+
+        ACCEPTABLE USE
+
+        You agree to use Longivor only for personal, non-commercial purposes. You will not:
+        • Reverse engineer, decompile, or attempt to extract the source code.
+        • Use the app to harm yourself or others.
+        • Misrepresent your identity or information.
+
+        NOT MEDICAL ADVICE
+
+        Longivor provides fitness and wellness guidance based on user-provided data and general training principles. It is not a substitute for professional medical advice, diagnosis, or treatment.
+
+        Always consult a qualified health professional before:
+        • Starting any new exercise program.
+        • Making significant dietary changes.
+        • Acting on any insight or recommendation from the app.
+
+        If you experience pain, dizziness, or any concerning symptoms during exercise, stop immediately and seek medical attention.
+
+        AI-GENERATED CONTENT
+
+        Coach's Notes and adaptive recommendations are generated by an AI system using your data and general fitness principles. They are suggestions only and may not always be accurate. Use your judgment and consult professionals when in doubt.
+
+        ASSUMPTION OF RISK
+
+        Exercise carries inherent risks. By using Longivor, you acknowledge these risks and agree that you exercise at your own risk. We are not liable for any injuries, illnesses, or harms resulting from following recommendations in the app.
+
+        LIMITATION OF LIABILITY
+
+        To the fullest extent permitted by law, Longivor and its operators are not liable for any indirect, incidental, or consequential damages arising from your use of the app.
+
+        TERMINATION
+
+        We may suspend or terminate access to the app at any time if you violate these Terms. You may delete your account at any time from the Help & FAQ section.
+
+        CHANGES
+
+        We may update these Terms from time to time. Continued use of the app after changes constitutes acceptance of the new Terms.
+
+        GOVERNING LAW
+
+        These Terms are governed by the laws of the United States.
+        """
+    }
+}

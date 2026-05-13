@@ -61,6 +61,7 @@ struct MorningCheckInView: View {
             HStack(spacing: 16) {
                 ForEach(DailyCheckIn.Mood.allCases, id: \.self) { m in
                     Button {
+                        FeedbackManager.light()
                         mood = m
                     } label: {
                         VStack(spacing: 8) {
@@ -78,11 +79,41 @@ struct MorningCheckInView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(m.rawValue) mood")
                 }
             }
+            consequencePreview(text: moodConsequence)
             Spacer()
         }
         .padding()
+    }
+
+    private var moodConsequence: String {
+        switch mood {
+        case .great: return "Mood: Great → We'll push intensity today"
+        case .good: return "Mood: Good → Today's plan stays on track"
+        case .okay: return "Mood: Okay → Slight reduction in volume"
+        case .tired: return "Mood: Tired → Intensity drops, longer rest"
+        case .awful: return "Mood: Awful → Today swaps to recovery"
+        }
+    }
+
+    private func consequencePreview(text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(.blue)
+                .font(.caption)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.blue.opacity(0.18), in: Capsule())
+        .overlay(Capsule().stroke(Color.blue.opacity(0.3), lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(text)
     }
 
     private var energyStep: some View {
@@ -104,9 +135,20 @@ struct MorningCheckInView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
+            consequencePreview(text: energyConsequence)
             Spacer()
         }
         .padding()
+    }
+
+    private var energyConsequence: String {
+        switch energy {
+        case 5: return "Energy: 5/5 → Extra sets added"
+        case 4: return "Energy: 4/5 → Push hard today"
+        case 3: return "Energy: 3/5 → Plan stays as-is"
+        case 2: return "Energy: 2/5 → We'll reduce sets today"
+        default: return "Energy: 1/5 → Recovery session activated"
+        }
     }
 
     private var sorenessStep: some View {
@@ -128,9 +170,20 @@ struct MorningCheckInView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
+            consequencePreview(text: sorenessConsequence)
             Spacer()
         }
         .padding()
+    }
+
+    private var sorenessConsequence: String {
+        switch soreness {
+        case 5: return "Soreness: 5/5 → +20g protein, recovery snacks"
+        case 4: return "Soreness: 4/5 → Fewer sets, longer rest"
+        case 3: return "Soreness: 3/5 → Warm-up + cooldown added"
+        case 2: return "Soreness: 2/5 → Plan stays as-is"
+        default: return "Soreness: 1/5 → Ready to train normally"
+        }
     }
 
     private var sleepStep: some View {
@@ -152,9 +205,20 @@ struct MorningCheckInView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
+            consequencePreview(text: sleepConsequence)
             Spacer()
         }
         .padding()
+    }
+
+    private var sleepConsequence: String {
+        switch sleepRating {
+        case 5: return "Sleep: 5/5 → Body primed for intensity"
+        case 4: return "Sleep: 4/5 → Normal plan stays"
+        case 3: return "Sleep: 3/5 → Slight intensity reduction"
+        case 2: return "Sleep: 2/5 → +hydration, earlier bedtime tonight"
+        default: return "Sleep: 1/5 → Recovery mode + extra carbs"
+        }
     }
 
     private var notesStep: some View {
@@ -191,7 +255,7 @@ struct MorningCheckInView: View {
                 HStack {
                     Image(systemName: "arrow.up.circle.fill")
                         .foregroundStyle(.green)
-                    Text("You're feeling strong — today's plan stays at full intensity")
+                    Text("You're feeling strong! Today's plan stays at full intensity")
                         .font(.caption)
                 }
             } else {

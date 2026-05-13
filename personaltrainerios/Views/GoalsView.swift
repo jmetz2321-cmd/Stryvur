@@ -260,34 +260,64 @@ struct GoalRow: View {
                 }
             }
 
-            // Quick update inline
+            // Quick update inline with stepper + text option
             if !goal.isCompleted {
                 HStack(spacing: 8) {
+                    Button {
+                        FeedbackManager.soft()
+                        let decrement = stepSize(for: goal)
+                        let newVal = goal.category.isDecreasing ? goal.currentValue + decrement : max(0, goal.currentValue - decrement)
+                        viewModel.updateGoalProgress(goal.id, newValue: newVal)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .frame(width: 44, height: 44)
+                            .background(Color(.systemGray5), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(goal.category.isDecreasing ? "Increase \(goal.unit)" : "Decrease \(goal.unit)")
+
                     HStack(spacing: 4) {
-                        Image(systemName: "pencil.line")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        TextField("Update \(goal.unit)", text: $newValue)
+                        TextField("Set exact \(goal.unit)", text: $newValue)
                             .font(.caption)
                             .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 8))
 
                     Button {
-                        if let value = Double(newValue) {
-                            viewModel.updateGoalProgress(goal.id, newValue: value)
-                            newValue = ""
-                        }
+                        FeedbackManager.soft()
+                        let increment = stepSize(for: goal)
+                        let newVal = goal.category.isDecreasing ? max(0, goal.currentValue - increment) : goal.currentValue + increment
+                        viewModel.updateGoalProgress(goal.id, newValue: newVal)
                     } label: {
-                        Text("Log")
-                            .font(.caption)
-                            .fontWeight(.semibold)
+                        Image(systemName: "plus")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color(goal.category.color), in: Circle())
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(newValue.isEmpty)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(goal.category.isDecreasing ? "Decrease \(goal.unit)" : "Increase \(goal.unit)")
+
+                    if !newValue.isEmpty {
+                        Button {
+                            if let value = Double(newValue) {
+                                viewModel.updateGoalProgress(goal.id, newValue: value)
+                                newValue = ""
+                            }
+                        } label: {
+                            Text("Set")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
                 }
             }
         }
@@ -297,6 +327,14 @@ struct GoalRow: View {
 
     private func formatValue(_ value: Double) -> String {
         value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+    }
+
+    private func stepSize(for goal: UserGoal) -> Double {
+        let unit = goal.unit.lowercased()
+        if unit.contains("lb") || unit.contains("kg") { return 0.5 }
+        if unit.contains("mile") || unit.contains("km") { return 0.5 }
+        if unit.contains("hour") { return 0.5 }
+        return 1.0
     }
 }
 

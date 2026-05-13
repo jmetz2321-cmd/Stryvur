@@ -11,6 +11,28 @@ class HealthKitManager {
     var todaySnapshot: HealthSnapshot?
     var weeklySnapshots: [HealthSnapshot] = []
 
+    // Per-metric visibility toggles (default all on)
+    var enabledMetrics: Set<String> = {
+        if let saved = UserDefaults.standard.array(forKey: "enabledHealthMetrics") as? [String] {
+            return Set(saved)
+        }
+        return Set(["steps", "calories", "heartRate", "restingHeartRate", "sleep", "active", "weight", "bodyFat"])
+    }() {
+        didSet {
+            UserDefaults.standard.set(Array(enabledMetrics), forKey: "enabledHealthMetrics")
+        }
+    }
+
+    func toggleMetric(_ key: String) {
+        if enabledMetrics.contains(key) { enabledMetrics.remove(key) } else { enabledMetrics.insert(key) }
+    }
+
+    func disconnect() {
+        isAuthorized = false
+        todaySnapshot = nil
+        weeklySnapshots = []
+    }
+
     init() {
         if UserDefaults.standard.bool(forKey: "healthKitAuthorized") && HKHealthStore.isHealthDataAvailable() {
             isAuthorized = true
@@ -34,13 +56,25 @@ class HealthKitManager {
         return types
     }()
 
+    /// True if the user has previously denied permissions and we can no longer prompt them.
+    /// HealthKit only shows the prompt once; subsequent calls silently no-op.
+    /// Set after the first request attempt and the user denies.
+    var hasPreviouslyDenied: Bool {
+        UserDefaults.standard.bool(forKey: "healthKitPreviouslyAsked") && !isAuthorized
+    }
+
     func requestAuthorization() async {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         do {
             try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-            isAuthorized = true
+            UserDefaults.standard.set(true, forKey: "healthKitPreviouslyAsked")
+            // Check if we actually got data — HealthKit doesn't surface user denial directly,
+            // so we infer by attempting a fetch and seeing if anything comes back.
             await fetchTodayData()
-            startObservingChanges()
+            if todaySnapshot != nil {
+                isAuthorized = true
+                startObservingChanges()
+            }
         } catch {
             print("HealthKit authorization failed: \(error)")
         }

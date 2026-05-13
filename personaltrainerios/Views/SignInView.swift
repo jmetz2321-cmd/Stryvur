@@ -19,7 +19,7 @@ struct SignInView: View {
                         .foregroundStyle(.white)
                 }
 
-                Text("4ever Health")
+                Text("Longivor")
                     .font(.largeTitle)
                     .fontWeight(.bold)
 

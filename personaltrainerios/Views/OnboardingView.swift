@@ -1,7 +1,9 @@
 import SwiftUI
+import StoreKit
 
 struct OnboardingView: View {
     var viewModel: AppViewModel
+    var subscriptionManager: SubscriptionManager
     let onComplete: () -> Void
     @State private var currentPage = 0
     @State private var phase: OnboardingPhase = .carousel
@@ -18,6 +20,9 @@ struct OnboardingView: View {
         case carousel
         case pickCategory
         case goalDetails
+        case planPreview
+        case trialOffer
+        case connectHealth
     }
 
     private let pages: [OnboardingPage] = [
@@ -25,13 +30,13 @@ struct OnboardingView: View {
             icon: "figure.strengthtraining.traditional",
             iconColor: .blue,
             title: "Your Personal AI Trainer",
-            subtitle: "Get a training plan built around your goals, schedule, and real-time health data. Workouts, nutrition, and sleep — all in one place."
+            subtitle: "Get a training plan built around your goals, schedule, and real-time health data. Workouts, nutrition, and sleep all in one place."
         ),
         OnboardingPage(
             icon: "target",
             iconColor: .orange,
             title: "Set Goals, Track Progress",
-            subtitle: "Tell us what you want to achieve — lose weight, build muscle, improve endurance — and we'll create a step-by-step plan with milestones to keep you motivated."
+            subtitle: "Tell us what you want to achieve. Whether it's losing weight, building muscle, or improving endurance, we'll create a step-by-step plan with milestones to keep you motivated."
         ),
         OnboardingPage(
             icon: "heart.fill",
@@ -43,7 +48,7 @@ struct OnboardingView: View {
             icon: "waveform.path.ecg",
             iconColor: .cyan,
             title: "Adapts in Real Time",
-            subtitle: "Your plan adjusts automatically based on your vitals, sleep, and activity. Connect Apple Health or enter your stats manually — either way, your plan stays current."
+            subtitle: "Your plan adjusts automatically based on your vitals, sleep, and activity. Connect Apple Health or enter your stats manually. Either way, your plan stays current."
         )
     ]
 
@@ -56,6 +61,12 @@ struct OnboardingView: View {
                 categoryPickerView
             case .goalDetails:
                 goalDetailsView
+            case .planPreview:
+                planPreviewView
+            case .trialOffer:
+                trialOfferView
+            case .connectHealth:
+                connectHealthView
             }
         }
         .background(Color(.systemBackground))
@@ -83,7 +94,7 @@ struct OnboardingView: View {
                         Spacer()
                         ZStack {
                             Circle()
-                                .fill(page.iconColor.opacity(0.12))
+                                .fill(page.iconColor.opacity(0.18))
                                 .frame(width: 120, height: 120)
                             Image(systemName: page.icon)
                                 .font(.system(size: 50))
@@ -198,7 +209,7 @@ struct OnboardingView: View {
                                 VStack(spacing: 12) {
                                     ZStack {
                                         Circle()
-                                            .fill(Color(category.color).opacity(0.15))
+                                            .fill(Color(category.color).opacity(0.20))
                                             .frame(width: 56, height: 56)
                                         Image(systemName: category.icon)
                                             .font(.title2)
@@ -387,7 +398,316 @@ struct OnboardingView: View {
             deadline: deadline
         )
         viewModel.addGoal(goal)
-        onComplete()
+        FeedbackManager.success()
+        withAnimation { phase = .planPreview }
+    }
+
+    // MARK: - Plan Preview
+
+    private var planPreviewView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button("Skip") { onComplete() }
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.green.opacity(0.20))
+                                .frame(width: 80, height: 80)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 36, weight: .bold))
+                                .foregroundStyle(.green)
+                        }
+                        Text("Your Plan Is Ready")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Built around your \(selectedCategory.rawValue.lowercased()) goal")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 12)
+
+                    VStack(spacing: 12) {
+                        previewRow(icon: "figure.run", iconColor: .blue, title: workoutCount, subtitle: "Weekly workouts tailored to your goal")
+                        previewRow(icon: "fork.knife", iconColor: .orange, title: nutritionSummary, subtitle: "Daily calorie and macro targets")
+                        previewRow(icon: "moon.fill", iconColor: .indigo, title: sleepSummary, subtitle: "Recommended bedtime and target")
+                        previewRow(icon: "flag.fill", iconColor: .purple, title: "4 Milestones", subtitle: "Progress checkpoints to keep you on track")
+                    }
+                    .padding(.horizontal)
+
+                    Button {
+                        withAnimation { phase = .trialOffer }
+                    } label: {
+                        HStack {
+                            Text("Continue")
+                                .fontWeight(.semibold)
+                            Image(systemName: "arrow.right")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 8)
+                }
+                .padding(.bottom, 32)
+            }
+        }
+    }
+
+    private func previewRow(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.20))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
+                    .font(.title3)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var workoutCount: String {
+        let count = viewModel.trainingPlan?.workouts.count ?? 0
+        return "\(count) Workouts Per Week"
+    }
+
+    private var nutritionSummary: String {
+        guard let plan = viewModel.trainingPlan?.nutritionPlan else { return "Nutrition Plan" }
+        return "\(plan.dailyCalories) Cal / Day"
+    }
+
+    private var sleepSummary: String {
+        guard let rec = viewModel.trainingPlan?.sleepRecommendation else { return "Sleep Plan" }
+        return "\(String(format: "%.1f", rec.targetHours))h Sleep Target"
+    }
+
+    // MARK: - Trial Offer (Free Trial Paywall)
+
+    private var trialOfferView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button("Skip") {
+                    withAnimation { phase = .connectHealth }
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+            }
+            .padding()
+
+            ScrollView {
+                VStack(spacing: 22) {
+                    VStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                .frame(width: 84, height: 84)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 38))
+                                .foregroundStyle(.white)
+                                .accessibilityHidden(true)
+                        }
+                        Text("Start Your 7-Day Free Trial")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Full access to your personalized plan. No charge for 7 days.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+
+                    VStack(spacing: 10) {
+                        trialFeatureRow("brain.head.profile.fill", .purple, "AI Coach's Notes that adapt in real time")
+                        trialFeatureRow("figure.run", .blue, "Workouts that flex with your energy")
+                        trialFeatureRow("fork.knife", .orange, "Smart nutrition and hydration tracking")
+                        trialFeatureRow("clock.arrow.circlepath", .indigo, "Full workout history, always saved")
+                    }
+                    .padding(.horizontal, 24)
+
+                    if subscriptionManager.products.isEmpty {
+                        ProgressView()
+                            .padding()
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(subscriptionManager.products, id: \.id) { product in
+                                trialProductOption(product)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                    }
+
+                    Button {
+                        guard let product = (selectedTrialProduct ?? subscriptionManager.products.last) else { return }
+                        FeedbackManager.medium()
+                        Task {
+                            await subscriptionManager.purchase(product)
+                            if subscriptionManager.isSubscribed {
+                                await MainActor.run {
+                                    withAnimation { phase = .connectHealth }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text("Start 7-Day Free Trial")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding(.horizontal, 32)
+                    .disabled(subscriptionManager.products.isEmpty)
+
+                    Text("Cancel anytime in Settings before day 7. No charge until then. After trial, billed at the price shown above.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                .padding(.bottom, 32)
+            }
+        }
+    }
+
+    @State private var selectedTrialProduct: Product?
+
+    private func trialFeatureRow(_ icon: String, _ color: Color, _ text: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.title3)
+                .frame(width: 28)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.subheadline)
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func trialProductOption(_ product: Product) -> some View {
+        let isSelected = selectedTrialProduct?.id == product.id || (selectedTrialProduct == nil && product.id == subscriptionManager.products.last?.id)
+        let isAnnual = product.id.contains("annual")
+        return Button {
+            FeedbackManager.light()
+            selectedTrialProduct = product
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .blue : Color(.systemGray3))
+                    .font(.title3)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(isAnnual ? "Annual" : "Monthly")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        if isAnnual {
+                            Text("Best Value")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.green, in: Capsule())
+                        }
+                    }
+                    Text("\(product.displayPrice) \(isAnnual ? "/ year after trial" : "/ month after trial")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding()
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Connect Apple Health
+
+    private var connectHealthView: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 28) {
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.18))
+                        .frame(width: 120, height: 120)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 50))
+                        .foregroundStyle(.red)
+                }
+
+                VStack(spacing: 12) {
+                    Text("Connect Apple Health")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Your plan gets smarter with real data. We'll use your steps, sleep, heart rate, and activity to personalize everything.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                VStack(spacing: 12) {
+                    Button {
+                        Task {
+                            await viewModel.healthKit.requestAuthorization()
+                            FeedbackManager.success()
+                            onComplete()
+                        }
+                    } label: {
+                        Label("Connect Apple Health", systemImage: "heart.circle.fill")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .controlSize(.large)
+                    .padding(.horizontal, 40)
+
+                    Button {
+                        onComplete()
+                    } label: {
+                        Text("Maybe Later")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer()
+            Spacer()
+        }
     }
 }
 

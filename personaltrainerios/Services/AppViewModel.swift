@@ -22,10 +22,35 @@ class AppViewModel {
     var foodLog: [FoodLogEntry] = []
     var checkedMeals: Set<String> = []
     var todayWaterOz: Int = 0
+    var workoutHistory: [WorkoutHistoryEntry] = []
 
     var userId: String = ""
     var expandWorkoutId: UUID?
     var selectedTab: Int = 0
+    /// Routes the Plan tab to a specific segment when set externally (e.g. via notification tap).
+    /// Values: "workouts", "nutrition", "sleep"
+    var planSegmentRoute: String?
+    var lastCompletedWorkoutId: UUID?
+    var showUndoToast: Bool = false
+    var undoToastMessage: String = ""
+
+    // "Plan updated" feedback toast (separate from undo toast)
+    var showPlanUpdatedToast: Bool = false
+    var planUpdatedMessage: String = ""
+
+    // Top-level sheet routing (presented by MainTabView to avoid toolbar/sheet race)
+    var activeSheet: DashboardSheet?
+    var showFirstRunTour: Bool = false
+
+    // Progressive disclosure & UX improvements
+    var isLoadingHealthData = false
+    var healthSyncError: String?
+    var deepLinkRoute: AppRoute?
+
+    enum DashboardSheet: String, Identifiable {
+        case manualStats, progressHub, healthManage, help, paywall
+        var id: String { rawValue }
+    }
 
     let healthKit = HealthKitManager()
     let functionHealth = FunctionHealthService()
@@ -40,6 +65,38 @@ class AppViewModel {
         return nil
     }
 
+    // MARK: - Progressive Disclosure (Day-based visibility)
+
+    private var daysSinceFirstLaunch: Int {
+        guard let firstLaunchDate = UserDefaults.standard.object(forKey: "appFirstLaunchDate") as? Date else {
+            return 0
+        }
+        let days = Calendar.current.dateComponents([.day], from: firstLaunchDate, to: Date()).day ?? 0
+        return max(0, days)
+    }
+
+    var shouldShowTrendsSection: Bool {
+        checkInHistory.count >= 3 && daysSinceFirstLaunch >= 2
+    }
+
+    var shouldShowCoachNotesSection: Bool {
+        // Always show — internal empty state guides user to connect health / check in
+        true
+    }
+
+    var shouldShowProgressHub: Bool {
+        daysSinceFirstLaunch >= 3
+    }
+
+    var shouldShowGettingStartedCard: Bool {
+        let hasHealth = healthKit.isAuthorized || manualStats.hasData
+        return !hasHealth && daysSinceFirstLaunch <= 2
+    }
+
+    var shouldShowTrialReminderCard: Bool {
+        daysSinceFirstLaunch >= 4
+    }
+
     init() {
         self.rewardProgress = RewardProgress(
             totalPoints: 0,
@@ -52,6 +109,15 @@ class AppViewModel {
         self.streakData = StreakData()
         self.integrationStatus = HealthIntegrationStatus()
         loadSavedData()
+        // Record first-open day for greeting fatigue tracking
+        if UserDefaults.standard.integer(forKey: "firstOpenDayOfYear") == 0 {
+            let today = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+            UserDefaults.standard.set(today, forKey: "firstOpenDayOfYear")
+        }
+        // Record first launch date for progressive disclosure
+        if UserDefaults.standard.object(forKey: "appFirstLaunchDate") == nil {
+            UserDefaults.standard.set(Date(), forKey: "appFirstLaunchDate")
+        }
         checkMorningCheckIn()
     }
 
@@ -62,9 +128,11 @@ class AppViewModel {
         checkInHistory.append(checkIn)
         rewardProgress.totalPoints += 10
         FeedbackManager.medium()
+        BehaviorTracker.record(.checkIn)
 
         adaptAllPlans()
         recordStreakActivity()
+        triggerPlanUpdated("Plan updated based on your check-in")
 
         saveData()
     }
@@ -99,26 +167,23 @@ class AppViewModel {
     }
 
     private func checkMorningCheckIn() {
-        // Don't auto-present check-in if user has no goals yet (first launch)
-        guard !goals.isEmpty else { return }
-        let today = Calendar.current.startOfDay(for: Date())
-        let alreadyCheckedIn = checkInHistory.contains {
-            Calendar.current.isDate($0.date, inSameDayAs: today)
-        }
-        if !alreadyCheckedIn {
-            showMorningCheckIn = true
-        }
+        // No longer auto-presents — check-in is surfaced via the Dashboard card instead.
+        // Users still tap to open the check-in sheet when they're ready.
     }
 
     // MARK: - Food Log
 
     func addFoodLogEntry(_ entry: FoodLogEntry) {
         foodLog.append(entry)
+        BehaviorTracker.record(.mealLog)
+        refreshInsights()
+        triggerPlanUpdated("Coach's Notes updated")
         saveData()
     }
 
     func removeFoodLogEntry(_ id: UUID) {
         foodLog.removeAll { $0.id == id }
+        refreshInsights()
         saveData()
     }
 
@@ -130,6 +195,7 @@ class AppViewModel {
             FeedbackManager.light()
         }
         checkNutritionRewards()
+        refreshInsights()
         saveData()
     }
 
@@ -153,12 +219,15 @@ class AppViewModel {
     func addWater(_ oz: Int = 8) {
         todayWaterOz += oz
         FeedbackManager.soft()
+        BehaviorTracker.record(.waterLog)
         checkHydrationReward()
+        refreshInsights()
         saveData()
     }
 
     func removeWater(_ oz: Int = 8) {
         todayWaterOz = max(todayWaterOz - oz, 0)
+        refreshInsights()
         saveData()
     }
 
@@ -193,11 +262,36 @@ class AppViewModel {
 
     // MARK: - Today's Workout
 
+    /// Today's workout that hasn't been completed yet. Nil if no workout scheduled or already done.
     var todayWorkout: Workout? {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE"
         let today = formatter.string(from: Date())
         return trainingPlan?.workouts.first(where: { $0.day == today && !$0.isCompleted })
+    }
+
+    /// Today's workout regardless of completion status. Used to distinguish rest days from done-workout days.
+    var todayScheduledWorkout: Workout? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let today = formatter.string(from: Date())
+        return trainingPlan?.workouts.first(where: { $0.day == today })
+    }
+
+    /// True if today's scheduled workout is "Active Recovery" (Recovery Day, not Rest Day).
+    var isTodayRecoveryDay: Bool {
+        guard let workout = todayScheduledWorkout else { return false }
+        return workout.name.localizedCaseInsensitiveContains("recovery")
+    }
+
+    /// True if today has no scheduled workout at all (true Rest Day).
+    var isTodayRestDay: Bool {
+        todayScheduledWorkout == nil
+    }
+
+    /// True if today's scheduled workout has been completed.
+    var isTodayWorkoutCompleted: Bool {
+        todayScheduledWorkout?.isCompleted ?? false
     }
 
     // MARK: - Check-In Trends (last 7 days)
@@ -263,11 +357,17 @@ class AppViewModel {
     }
 
     func refreshInsights() {
+        let isWeightLoss = goals.first(where: { !$0.isCompleted })?.category == .weightLoss
         adaptiveInsights = AdaptiveEngine.generateInsights(
             checkIn: todayCheckIn,
             healthSnapshot: effectiveSnapshot,
             functionVitals: functionHealth.vitals,
-            streakData: streakData
+            streakData: streakData,
+            caloriesLogged: todayLoggedCalories,
+            calorieTarget: trainingPlan?.nutritionPlan.dailyCalories ?? 0,
+            waterOz: todayWaterOz,
+            waterTarget: trainingPlan?.nutritionPlan.hydrationOz ?? 0,
+            isWeightLossGoal: isWeightLoss
         )
     }
 
@@ -389,13 +489,38 @@ class AppViewModel {
         guard var plan = trainingPlan,
               let index = plan.workouts.firstIndex(where: { $0.id == workoutId }) else { return }
         let name = plan.workouts[index].name
+        let historyEntry = WorkoutHistoryEntry(from: plan.workouts[index])
+        workoutHistory.append(historyEntry)
         plan.workouts[index].isCompleted = true
         trainingPlan = plan
         rewardProgress.totalPoints += 15
         FeedbackManager.medium()
+        BehaviorTracker.record(.workout)
         recordStreakActivity()
         checkAndUnlockRewards()
-        triggerCelebration(CoachCopy.workoutCompleted(name))
+
+        // Show undo toast for routine completions; celebration only fires for milestones (streak %7, etc.)
+        lastCompletedWorkoutId = workoutId
+        undoToastMessage = CoachCopy.workoutCompleted(name)
+        showUndoToast = true
+
+        saveData()
+    }
+
+    func undoLastWorkout() {
+        guard let workoutId = lastCompletedWorkoutId,
+              var plan = trainingPlan,
+              let index = plan.workouts.firstIndex(where: { $0.id == workoutId }) else { return }
+        plan.workouts[index].isCompleted = false
+        trainingPlan = plan
+        rewardProgress.totalPoints = max(0, rewardProgress.totalPoints - 15)
+        // Remove the most recent history entry matching this workout
+        if let historyIndex = workoutHistory.lastIndex(where: { $0.workoutId == workoutId }) {
+            workoutHistory.remove(at: historyIndex)
+        }
+        lastCompletedWorkoutId = nil
+        showUndoToast = false
+        FeedbackManager.light()
         saveData()
     }
 
@@ -608,6 +733,14 @@ class AppViewModel {
         FeedbackManager.success()
     }
 
+    func triggerPlanUpdated(_ message: String) {
+        planUpdatedMessage = message
+        showPlanUpdatedToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            self.showPlanUpdatedToast = false
+        }
+    }
+
     private func checkAndUnlockRewards() {
         for i in rewardProgress.rewards.indices {
             if !rewardProgress.rewards[i].isUnlocked && rewardProgress.totalPoints >= rewardProgress.rewards[i].pointsRequired {
@@ -664,6 +797,9 @@ class AppViewModel {
         }
         UserDefaults.standard.set(todayWaterOz, forKey: "todayWaterOz")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "waterDate")
+        if let historyEncoded = try? JSONEncoder().encode(workoutHistory) {
+            UserDefaults.standard.set(historyEncoded, forKey: "workoutHistory")
+        }
 
         syncToSupabase()
     }
@@ -772,6 +908,10 @@ class AppViewModel {
         if let data = UserDefaults.standard.data(forKey: "checkedMeals"),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
             checkedMeals = Set(decoded)
+        }
+        if let data = UserDefaults.standard.data(forKey: "workoutHistory"),
+           let decoded = try? JSONDecoder().decode([WorkoutHistoryEntry].self, from: data) {
+            workoutHistory = decoded
         }
 
         // Load water — reset if it's a new day
