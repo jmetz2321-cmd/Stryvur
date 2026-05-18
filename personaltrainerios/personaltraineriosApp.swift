@@ -18,7 +18,9 @@ struct personaltraineriosApp: App {
         WindowGroup {
             ContentView()
                 .onAppear {
+                    #if !targetEnvironment(simulator)
                     NotificationManager.requestPermission()
+                    #endif
                 }
         }
     }

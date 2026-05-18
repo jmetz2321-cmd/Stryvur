@@ -73,3 +73,10 @@ struct RateAppView: View {
         onDismiss()
     }
 }
+
+#Preview {
+    RateAppView {
+        print("Dismissed")
+    }
+    .background(Color(.systemGroupedBackground))
+}
