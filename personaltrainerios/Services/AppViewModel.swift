@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import StoreKit
 import Observation
 
 @Observable
@@ -41,7 +42,6 @@ class AppViewModel {
     // Top-level sheet routing (presented by MainTabView to avoid toolbar/sheet race)
     var activeSheet: DashboardSheet?
     var showFirstRunTour: Bool = false
-    var showRateAppPrompt: Bool = false
 
     // Progressive disclosure & UX improvements
     var isLoadingHealthData = false
@@ -538,7 +538,7 @@ class AppViewModel {
         // First time: show on first activity
         if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && totalActivities >= 1 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.showRateAppPrompt = true
+                self.requestNativeReview()
                 UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
             }
@@ -551,9 +551,15 @@ class AppViewModel {
 
         if daysSinceLastPrompt >= 120 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.showRateAppPrompt = true
+                self.requestNativeReview()
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
             }
+        }
+    }
+
+    private func requestNativeReview() {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: windowScene)
         }
     }
 

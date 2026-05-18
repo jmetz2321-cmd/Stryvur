@@ -4,7 +4,6 @@ import AuthenticationServices
 struct SignInView: View {
     var authManager: AuthManager
     @Environment(\.colorScheme) var colorScheme
-    @State private var showRateAppPreview = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,24 +49,5 @@ struct SignInView: View {
             .padding(.bottom, 50)
         }
         .background(Color(.systemBackground))
-        .sheet(isPresented: $showRateAppPreview) {
-            RateAppView {
-                showRateAppPreview = false
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            // Debug button - tap to show rate prompt demo
-            Button {
-                #if targetEnvironment(simulator)
-                NotificationCenter.default.post(name: NSNotification.Name("ShowRatePromptDemo"), object: nil)
-                #endif
-            } label: {
-                Image(systemName: "star.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.orange)
-                    .padding()
-            }
-            .opacity(0.7)
-        }
     }
 }

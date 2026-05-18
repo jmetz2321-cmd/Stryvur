@@ -105,11 +105,6 @@ struct MainTabView: View {
                 PaywallView(subscriptionManager: subscriptionManager)
             }
         }
-        .sheet(isPresented: $viewModel.showRateAppPrompt) {
-            RateAppView {
-                viewModel.showRateAppPrompt = false
-            }
-        }
         .onAppear {
             if !authManager.userID.isEmpty {
                 viewModel.loadFromSupabase(userId: authManager.userID)
