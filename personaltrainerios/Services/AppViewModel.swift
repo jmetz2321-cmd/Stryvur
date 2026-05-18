@@ -193,6 +193,7 @@ class AppViewModel {
     }
 
     func toggleMealChecked(_ mealId: String) {
+        let wasChecking = !checkedMeals.contains(mealId)
         if checkedMeals.contains(mealId) {
             checkedMeals.remove(mealId)
         } else {
@@ -201,6 +202,12 @@ class AppViewModel {
         }
         checkNutritionRewards()
         refreshInsights()
+
+        // Only trigger rate prompt when checking (not unchecking) a meal
+        if wasChecking {
+            checkAndShowRatePrompt()
+        }
+
         saveData()
     }
 
@@ -227,6 +234,10 @@ class AppViewModel {
         BehaviorTracker.record(.waterLog)
         checkHydrationReward()
         refreshInsights()
+
+        // Trigger rate prompt for hydration logging
+        checkAndShowRatePrompt()
+
         saveData()
     }
 
@@ -532,11 +543,14 @@ class AppViewModel {
         saveData()
     }
 
+    /// Triggers the native iOS review prompt based on user engagement cadence.
+    /// - Called from: completeWorkout, addFoodLogEntry, toggleMealChecked, addWater
+    /// - First time: shows after user's first data point (workout, meal, or hydration)
+    /// - Subsequent: shows every 120 days when user logs another data point
+    /// - Never shows on sign-in or app launch — only after in-app engagement
     private func checkAndShowRatePrompt() {
-        let totalActivities = workoutHistory.count + foodLog.count
-
-        // First time: show on first activity
-        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && totalActivities >= 1 {
+        // First time: show on user's first logged data point
+        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.requestNativeReview()
                 UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
@@ -545,7 +559,7 @@ class AppViewModel {
             return
         }
 
-        // Subsequent times: show only after 120 days have passed
+        // Subsequent times: show only after 120 days, triggered by next in-app activity
         let lastPromptDate = UserDefaults.standard.object(forKey: "lastRatePromptDate") as? Date ?? Date.distantPast
         let daysSinceLastPrompt = Calendar.current.dateComponents([.day], from: lastPromptDate, to: Date()).day ?? 0
 
