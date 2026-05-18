@@ -540,23 +540,18 @@ class AppViewModel {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.showRateAppPrompt = true
                 UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
-                UserDefaults.standard.set(totalActivities, forKey: "lastRatePromptActivityCount")
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
             }
             return
         }
 
-        // Subsequent times: show every 5 activities or 7 days
-        let lastActivityCount = UserDefaults.standard.integer(forKey: "lastRatePromptActivityCount")
+        // Subsequent times: show only after 120 days have passed
         let lastPromptDate = UserDefaults.standard.object(forKey: "lastRatePromptDate") as? Date ?? Date.distantPast
-
-        let activitiesSinceLastPrompt = totalActivities - lastActivityCount
         let daysSinceLastPrompt = Calendar.current.dateComponents([.day], from: lastPromptDate, to: Date()).day ?? 0
 
-        if activitiesSinceLastPrompt >= 5 || daysSinceLastPrompt >= 7 {
+        if daysSinceLastPrompt >= 120 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.showRateAppPrompt = true
-                UserDefaults.standard.set(totalActivities, forKey: "lastRatePromptActivityCount")
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
             }
         }
