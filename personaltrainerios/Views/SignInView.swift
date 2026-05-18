@@ -6,27 +6,26 @@ struct SignInView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 0) {
             Spacer()
 
-            VStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 100, height: 100)
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.white)
+            VStack(spacing: 20) {
+                Image("Image")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+
+                VStack(spacing: 8) {
+                    Text("Stryvur")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    Text("Your AI-powered fitness companion")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-
-                Text("Longivor")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-
-                Text("Your AI-powered fitness companion")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 40)
 
             Spacer()
 
@@ -47,9 +46,7 @@ struct SignInView: View {
                     .padding(.horizontal, 20)
             }
             .padding(.horizontal, 40)
-
-            Spacer()
-                .frame(height: 40)
+            .padding(.bottom, 50)
         }
         .background(Color(.systemBackground))
     }

@@ -406,7 +406,7 @@ struct HealthPermissionsSheet: View {
                         Label("Open Health App", systemImage: "heart.fill")
                     }
 
-                    Text("To modify permissions, go to Settings > Health > Data Access & Devices > Longivor")
+                    Text("To modify permissions, go to Settings > Health > Data Access & Devices > Stryvur")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

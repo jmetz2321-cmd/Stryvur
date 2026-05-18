@@ -88,7 +88,7 @@ struct HelpView: View {
                 HelpItem(q: "When do notifications fire?",
                          a: "Notifications adapt to when you actually use the app. After a few days, check-in reminders fire around your usual time, workout reminders before you typically train, etc."),
                 HelpItem(q: "How do I turn them off?",
-                         a: "iOS Settings → Notifications → Longivor. You can disable all or pick which types you receive."),
+                         a: "iOS Settings → Notifications → Stryvur. You can disable all or pick which types you receive."),
             ]
         ),
     ]
@@ -101,7 +101,7 @@ struct HelpView: View {
                         Text("Help & FAQ")
                             .font(.title2)
                             .fontWeight(.bold)
-                        Text("Quick answers to common questions about how Longivor works.")
+                        Text("Quick answers to common questions about how Stryvur works.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -159,7 +159,7 @@ struct HelpView: View {
                     }
 
                     // Version
-                    Text("Longivor v1.0.0")
+                    Text("Stryvur v1.0.0")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .padding(.top, 4)

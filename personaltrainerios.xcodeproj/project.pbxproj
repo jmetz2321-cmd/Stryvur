@@ -8,10 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		DA0AFDF52FAD2B5200CF8F27 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = DA1SUPA0012FAD100000000002 /* Supabase */; };
+		DA938FF42FB624F800B60CA5 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DA938FF32FB624F700B60CA5 /* StoreKit.framework */; };
+		DA938FF62FB625FB00B60CA5 /* Stryvur.storekit in Resources */ = {isa = PBXBuildFile; fileRef = DA938FF52FB625FB00B60CA5 /* Stryvur.storekit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		DA0AFCDB2FAD0FFC00CF8F27 /* personaltrainerios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = personaltrainerios.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA938FF32FB624F700B60CA5 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		DA938FF52FB625FB00B60CA5 /* Stryvur.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Stryvur.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -28,6 +32,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DA0AFDF52FAD2B5200CF8F27 /* Supabase in Frameworks */,
+				DA938FF42FB624F800B60CA5 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -37,7 +42,9 @@
 		DA0AFCD22FAD0FFC00CF8F27 = {
 			isa = PBXGroup;
 			children = (
+				DA938FF52FB625FB00B60CA5 /* Stryvur.storekit */,
 				DA0AFCDD2FAD0FFC00CF8F27 /* personaltrainerios */,
+				DA938FF22FB624F700B60CA5 /* Frameworks */,
 				DA0AFCDC2FAD0FFC00CF8F27 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -48,6 +55,14 @@
 				DA0AFCDB2FAD0FFC00CF8F27 /* personaltrainerios.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DA938FF22FB624F700B60CA5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DA938FF32FB624F700B60CA5 /* StoreKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -118,6 +133,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA938FF62FB625FB00B60CA5 /* Stryvur.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,7 +280,8 @@
 				DEVELOPMENT_TEAM = ZPL34Q6GD8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Longivor;
+				INFOPLIST_KEY_CFBundleDisplayName = Stryvur;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your health data to personalize your training plan, track your progress, and provide tailored workout, nutrition, and sleep recommendations.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We save your workout data to Apple Health to keep all your fitness information in one place.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -277,7 +294,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jonmetz.longivor;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jonmetz.stryvur;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -300,7 +317,8 @@
 				DEVELOPMENT_TEAM = ZPL34Q6GD8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Longivor;
+				INFOPLIST_KEY_CFBundleDisplayName = Stryvur;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your health data to personalize your training plan, track your progress, and provide tailored workout, nutrition, and sleep recommendations.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We save your workout data to Apple Health to keep all your fitness information in one place.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -313,7 +331,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jonmetz.longivor;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jonmetz.stryvur;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

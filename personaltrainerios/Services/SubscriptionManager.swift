@@ -6,16 +6,24 @@ import Observation
 ///
 /// SETUP REQUIRED BEFORE LAUNCH:
 /// 1. Create your subscription products in App Store Connect:
-///    - Monthly: app.fourever.health.monthly ($4.99/mo testing price)
-///    - Annual: app.fourever.health.annual ($29.99/yr testing price)
+///    - Monthly: app.stryvur.monthly — $7.99 / month (cancel anytime)
+///    - Annual: app.stryvur.annual — $49.99 / year (effective $4.16 / month)
 /// 2. Configure 7-day free trial introductory offer on BOTH products.
 /// 3. Add a StoreKit Configuration file to the Xcode project for local testing.
 /// 4. Enable In-App Purchase capability in Signing & Capabilities.
+///
+/// ACCESS TIERS:
+/// - Trial (7 days): full access incl. AI Coach's Notes
+/// - Free (post-trial): Apple Health sync, manual logging, workouts — NO AI insights
+/// - Paid (monthly/annual): full access incl. AI Coach's Notes
 @Observable
 @MainActor
 class SubscriptionManager {
-    static let monthlyProductID = "app.fourever.health.monthly"
-    static let annualProductID = "app.fourever.health.annual"
+    static let monthlyProductID = "app.stryvur.monthly"
+    static let annualProductID = "app.stryvur.annual"
+    static let monthlyDisplayPrice = "$7.99"
+    static let annualDisplayPrice = "$49.99"
+    static let annualEffectiveMonthly = "$4.16"
     static let trialDurationDays = 7
     static let existingUserBonusTrialDays = 30
 

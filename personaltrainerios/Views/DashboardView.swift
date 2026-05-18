@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 struct DashboardView: View {
     var viewModel: AppViewModel
@@ -6,6 +7,7 @@ struct DashboardView: View {
     var subscriptionManager: SubscriptionManager
     @State private var showSignOutConfirm = false
     @State private var showProfileMenu = false
+    @State private var showManageSubscriptions = false
     @State private var workoutJustCompleted = false
     @State private var coachNotesExpanded = false
     @State private var trendsExpanded = false
@@ -78,13 +80,21 @@ struct DashboardView: View {
             .confirmationDialog("Account", isPresented: $showProfileMenu, titleVisibility: .visible) {
                 if subscriptionManager.isSubscribed {
                     Button("Manage Subscription") {
-                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                            UIApplication.shared.open(url)
-                        }
+                        showManageSubscriptions = true
+                    }
+                } else if subscriptionManager.isInTrial {
+                    Button("Manage Account") {
+                        showManageSubscriptions = true
+                    }
+                    Button("Upgrade to Premium") {
+                        AppRoute.subscription.apply(to: viewModel, subscriptionManager: subscriptionManager)
                     }
                 } else {
                     Button("Subscribe to Premium") {
                         AppRoute.subscription.apply(to: viewModel, subscriptionManager: subscriptionManager)
+                    }
+                    Button("Restore Purchase") {
+                        Task { await subscriptionManager.restorePurchases() }
                     }
                 }
                 if !viewModel.healthKit.isAuthorized {
@@ -110,6 +120,7 @@ struct DashboardView: View {
                     Text(authManager.userName)
                 }
             }
+            .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
             .confirmationDialog("Sign Out?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) {
                     authManager.signOut()
@@ -189,7 +200,7 @@ struct DashboardView: View {
                         HStack(spacing: 10) {
                             Image(systemName: goal.category.icon)
                                 .font(.caption)
-                                .foregroundStyle(Color(goal.category.color))
+                                .foregroundStyle(goal.category.tint)
                                 .frame(width: 20)
                             Text(goal.title)
                                 .font(.caption)
@@ -197,7 +208,7 @@ struct DashboardView: View {
                             Text("\(Int(goal.progress * 100))%")
                                 .font(.caption)
                                 .fontWeight(.semibold)
-                                .foregroundStyle(Color(goal.category.color))
+                                .foregroundStyle(goal.category.tint)
                         }
                     }
                 }
@@ -1352,7 +1363,7 @@ struct HealthManageSheet: View {
                         Label("Disconnect Apple Health", systemImage: "xmark.circle")
                     }
                 } footer: {
-                    Text("To fully revoke permissions, also go to Settings > Health > Data Access & Devices > Longivor.")
+                    Text("To fully revoke permissions, also go to Settings > Health > Data Access & Devices > Stryvur.")
                 }
             }
             .navigationTitle("Manage Health")

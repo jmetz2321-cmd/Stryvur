@@ -34,12 +34,52 @@ class HealthKitManager {
     }
 
     init() {
+        #if targetEnvironment(simulator)
+        isAuthorized = true
+        loadMockData()
+        #else
         if UserDefaults.standard.bool(forKey: "healthKitAuthorized") && HKHealthStore.isHealthDataAvailable() {
             isAuthorized = true
             Task {
                 await fetchTodayData()
                 startObservingChanges()
             }
+        }
+        #endif
+    }
+
+    private func loadMockData() {
+        todaySnapshot = HealthSnapshot(
+            date: Date(),
+            steps: 8243,
+            caloriesBurned: 487,
+            activeMinutes: 42,
+            heartRate: 72,
+            restingHeartRate: 58,
+            sleepHours: 7.5,
+            sleepQuality: .good,
+            weight: 178.5,
+            bodyFatPercentage: 18.2
+        )
+
+        let calendar = Calendar.current
+        weeklySnapshots = (1...7).map { daysAgo in
+            let date = calendar.date(byAdding: .day, value: -daysAgo, to: Date())!
+            let steps = Int.random(in: 6000...12000)
+            let sleep = Double.random(in: 6.0...8.5)
+            let sleepQuality: HealthSnapshot.SleepQuality = sleep >= 8 ? .excellent : sleep >= 7 ? .good : sleep >= 5.5 ? .fair : .poor
+            return HealthSnapshot(
+                date: date,
+                steps: steps,
+                caloriesBurned: Double.random(in: 300...600),
+                activeMinutes: Int.random(in: 20...60),
+                heartRate: Double.random(in: 65...85),
+                restingHeartRate: Double.random(in: 54...65),
+                sleepHours: sleep,
+                sleepQuality: sleepQuality,
+                weight: Double.random(in: 177...180),
+                bodyFatPercentage: Double.random(in: 17...19)
+            )
         }
     }
 
@@ -104,6 +144,10 @@ class HealthKitManager {
     }
 
     func fetchTodayData() async {
+        #if targetEnvironment(simulator)
+        loadMockData()
+        return
+        #endif
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
 

@@ -4,11 +4,9 @@ struct MainTabView: View {
     var authManager: AuthManager
     @State private var viewModel = AppViewModel()
     @State private var subscriptionManager = SubscriptionManager()
-    @State private var showExistingUserWelcome = false
     @State private var showSubscribedToast = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("hasSeenFirstRunTour") private var hasSeenFirstRunTour = false
-    @AppStorage("hasSeenExistingUserWelcome") private var hasSeenExistingUserWelcome = false
     @AppStorage("hasShownSubscribedConfirmation") private var hasShownSubscribedConfirmation = false
 
     var body: some View {
@@ -107,27 +105,23 @@ struct MainTabView: View {
                 PaywallView(subscriptionManager: subscriptionManager)
             }
         }
+        .sheet(isPresented: $viewModel.showRateAppPrompt) {
+            RateAppView {
+                viewModel.showRateAppPrompt = false
+            }
+        }
         .onAppear {
             if !authManager.userID.isEmpty {
                 viewModel.loadFromSupabase(userId: authManager.userID)
             }
             let isExisting = SubscriptionManager.isExistingUserOnFirstSubLaunch()
             subscriptionManager.bootstrapTrial(isExistingUser: isExisting)
-            if isExisting && !hasSeenExistingUserWelcome {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showExistingUserWelcome = true
-                }
-            } else if !hasSeenFirstRunTour {
+            if !hasSeenFirstRunTour {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     hasSeenFirstRunTour = true
                     viewModel.showFirstRunTour = true
                 }
             }
-        }
-        .sheet(isPresented: $showExistingUserWelcome, onDismiss: {
-            hasSeenExistingUserWelcome = true
-        }) {
-            ExistingUserWelcomeView(subscriptionManager: subscriptionManager)
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationCoordinator.didTapNotification)) { note in
             if let raw = note.object as? String,

@@ -200,7 +200,7 @@ struct GoalRow: View {
             HStack(spacing: 12) {
                 Image(systemName: goal.category.icon)
                     .font(.title3)
-                    .foregroundStyle(Color(goal.category.color))
+                    .foregroundStyle(goal.category.tint)
                     .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -218,7 +218,7 @@ struct GoalRow: View {
                             Text("\(Int(goal.progress * 100))%")
                                 .font(.caption)
                                 .fontWeight(.bold)
-                                .foregroundStyle(Color(goal.category.color))
+                                .foregroundStyle(goal.category.tint)
                         }
                         Image(systemName: "chevron.right")
                             .font(.caption2)
@@ -229,9 +229,9 @@ struct GoalRow: View {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 3)
-                                .fill(Color(goal.category.color).opacity(0.15))
+                                .fill(goal.category.tint.opacity(0.15))
                             RoundedRectangle(cornerRadius: 3)
-                                .fill(Color(goal.category.color))
+                                .fill(goal.category.tint)
                                 .frame(width: geo.size.width * goal.progress)
                         }
                     }
@@ -299,7 +299,7 @@ struct GoalRow: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.white)
                             .frame(width: 44, height: 44)
-                            .background(Color(goal.category.color), in: Circle())
+                            .background(goal.category.tint, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(goal.category.isDecreasing ? "Decrease \(goal.unit)" : "Increase \(goal.unit)")
@@ -355,10 +355,10 @@ struct GoalDetailSheet: View {
                     HStack(spacing: 20) {
                         ZStack {
                             Circle()
-                                .stroke(Color(goal.category.color).opacity(0.15), lineWidth: 8)
+                                .stroke(goal.category.tint.opacity(0.15), lineWidth: 8)
                             Circle()
                                 .trim(from: 0, to: goal.progress)
-                                .stroke(Color(goal.category.color), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                .stroke(goal.category.tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
                                 .animation(.spring, value: goal.progress)
                             VStack(spacing: 1) {
@@ -392,12 +392,12 @@ struct GoalDetailSheet: View {
                             HStack(spacing: 6) {
                                 Text("Goal")
                                     .font(.caption)
-                                    .foregroundStyle(Color(goal.category.color))
+                                    .foregroundStyle(goal.category.tint)
                                     .frame(width: 45, alignment: .leading)
                                 Text("\(formatValue(goal.targetValue)) \(goal.unit)")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
-                                    .foregroundStyle(Color(goal.category.color))
+                                    .foregroundStyle(goal.category.tint)
                             }
                         }
                         Spacer()

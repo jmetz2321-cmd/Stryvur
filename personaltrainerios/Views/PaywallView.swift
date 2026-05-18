@@ -21,7 +21,7 @@ struct PaywallView: View {
                                 .foregroundStyle(.white)
                                 .accessibilityHidden(true)
                         }
-                        Text("Try Longivor Free")
+                        Text("Try Stryvur Free")
                             .font(.title2)
                             .fontWeight(.bold)
                         Text("7 days free, then pick a plan. Cancel anytime.")
@@ -50,15 +50,16 @@ struct PaywallView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
 
-                    // Product picker
+                    // Product picker (with hardcoded fallback display)
                     if subscriptionManager.isLoading {
                         ProgressView()
                             .padding()
                     } else if subscriptionManager.products.isEmpty {
-                        Text("Subscriptions unavailable. Check your connection.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding()
+                        VStack(spacing: 10) {
+                            fallbackProductOption(isAnnual: true)
+                            fallbackProductOption(isAnnual: false)
+                        }
+                        .padding(.horizontal)
                     } else {
                         VStack(spacing: 10) {
                             ForEach(subscriptionManager.products, id: \.id) { product in
@@ -67,6 +68,10 @@ struct PaywallView: View {
                         }
                         .padding(.horizontal)
                     }
+
+                    // After-trial explainer
+                    postTrialExplainer
+                        .padding(.horizontal)
 
                     // CTA
                     Button {
@@ -84,7 +89,7 @@ struct PaywallView: View {
                     .padding(.horizontal)
                     .disabled(subscriptionManager.products.isEmpty)
 
-                    Text("No charge for 7 days. Cancel anytime in Settings before then to avoid being charged.")
+                    Text("No charge for 7 days. Cancel anytime in Settings before then. After the trial, you'll be billed at the price you selected unless cancelled.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -145,10 +150,34 @@ struct PaywallView: View {
     private func productOption(_ product: Product) -> some View {
         let isSelected = selectedProduct?.id == product.id
         let isAnnual = product.id.contains("annual")
-        return Button {
-            FeedbackManager.light()
-            selectedProduct = product
-        } label: {
+        return optionCard(
+            isSelected: isSelected,
+            isAnnual: isAnnual,
+            price: product.displayPrice,
+            cadence: isAnnual ? "/ year" : "/ month",
+            secondaryPrice: isAnnual ? "\(SubscriptionManager.annualEffectiveMonthly) / month, billed annually" : "Cancel anytime",
+            action: {
+                FeedbackManager.light()
+                selectedProduct = product
+            }
+        )
+    }
+
+    private func fallbackProductOption(isAnnual: Bool) -> some View {
+        optionCard(
+            isSelected: isAnnual ? (selectedProduct == nil) : false,
+            isAnnual: isAnnual,
+            price: isAnnual ? SubscriptionManager.annualDisplayPrice : SubscriptionManager.monthlyDisplayPrice,
+            cadence: isAnnual ? "/ year" : "/ month",
+            secondaryPrice: isAnnual ? "\(SubscriptionManager.annualEffectiveMonthly) / month, billed annually" : "Cancel anytime",
+            action: {}
+        )
+        .opacity(0.6)
+        .accessibilityLabel("Subscription unavailable, check connection")
+    }
+
+    private func optionCard(isSelected: Bool, isAnnual: Bool, price: String, cadence: String, secondaryPrice: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? .blue : Color(.systemGray3))
@@ -159,7 +188,7 @@ struct PaywallView: View {
                         Text(isAnnual ? "Annual" : "Monthly")
                             .font(.headline)
                         if isAnnual {
-                            Text("Best Value")
+                            Text("Save 48%")
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.white)
@@ -168,11 +197,20 @@ struct PaywallView: View {
                                 .background(.green, in: Capsule())
                         }
                     }
-                    Text(product.displayPrice + (isAnnual ? " / year" : " / month"))
+                    Text(secondaryPrice)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                    Text(cadence)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding()
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -182,7 +220,51 @@ struct PaywallView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(isAnnual ? "Annual" : "Monthly") subscription, \(product.displayPrice)\(isAnnual ? " per year" : " per month")\(isSelected ? ", selected" : "")")
+    }
+
+    private var postTrialExplainer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("After your 7-day trial")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Paid", systemImage: "sparkles")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.purple)
+                    Text("AI Coach's Notes")
+                        .font(.caption)
+                    Text("Adaptive workouts")
+                        .font(.caption)
+                    Text("Personalized nutrition")
+                        .font(.caption)
+                    Text("All Apple Health insights")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Free", systemImage: "person")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Text("Apple Health sync")
+                        .font(.caption)
+                    Text("Manual logging")
+                        .font(.caption)
+                    Text("Workout history")
+                        .font(.caption)
+                    Text("No AI Coach insights")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding()
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 }

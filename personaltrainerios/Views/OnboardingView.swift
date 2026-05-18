@@ -10,11 +10,9 @@ struct OnboardingView: View {
 
     // Goal setup state
     @State private var selectedCategory: GoalCategory = .generalFitness
-    @State private var goalTitle = ""
-    @State private var targetValue = ""
-    @State private var currentValue = ""
-    @State private var unit = ""
-    @State private var deadline = Date().addingTimeInterval(86400 * 30)
+    @State private var prefillTitle = ""
+    @State private var prefillUnit = ""
+    @State private var isConnectingHealth = false
 
     private enum OnboardingPhase {
         case carousel
@@ -187,6 +185,16 @@ struct OnboardingView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [.orange.opacity(0.25), .pink.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 96, height: 96)
+                        Image(systemName: "target")
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundStyle(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .padding(.top, 20)
+
                     VStack(spacing: 8) {
                         Text("What's your main goal?")
                             .font(.title2)
@@ -197,7 +205,6 @@ struct OnboardingView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
                     }
-                    .padding(.top, 20)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         ForEach(GoalCategory.allCases) { category in
@@ -209,11 +216,15 @@ struct OnboardingView: View {
                                 VStack(spacing: 12) {
                                     ZStack {
                                         Circle()
-                                            .fill(Color(category.color).opacity(0.20))
-                                            .frame(width: 56, height: 56)
+                                            .fill(LinearGradient(
+                                                colors: [category.tint.opacity(0.35), category.tint.opacity(0.15)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ))
+                                            .frame(width: 64, height: 64)
                                         Image(systemName: category.icon)
-                                            .font(.title2)
-                                            .foregroundStyle(Color(category.color))
+                                            .font(.system(size: 28, weight: .semibold))
+                                            .foregroundStyle(category.tint)
                                     }
                                     Text(category.rawValue)
                                         .font(.subheadline)
@@ -222,11 +233,11 @@ struct OnboardingView: View {
                                         .multilineTextAlignment(.center)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
+                                .padding(.vertical, 22)
                                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color(category.color).opacity(0.3), lineWidth: 1)
+                                        .stroke(category.tint.opacity(0.35), lineWidth: 1.5)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -267,11 +278,11 @@ struct OnboardingView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Color(selectedCategory.color).opacity(0.15))
+                                .fill(selectedCategory.tint.opacity(0.15))
                                 .frame(width: 48, height: 48)
                             Image(systemName: selectedCategory.icon)
                                 .font(.title3)
-                                .foregroundStyle(Color(selectedCategory.color))
+                                .foregroundStyle(selectedCategory.tint)
                         }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(selectedCategory.rawValue)
@@ -284,44 +295,18 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
 
-                    // Form fields
-                    VStack(spacing: 14) {
-                        OnboardingTextField(label: "Goal name", placeholder: goalTitlePlaceholder, text: $goalTitle)
-                        OnboardingTextField(label: "Where are you now?", placeholder: currentValuePlaceholder, text: $currentValue, isNumeric: true)
-                        OnboardingTextField(label: selectedCategory.isDecreasing ? "Your target (lower)" : "Your target", placeholder: targetValuePlaceholder, text: $targetValue, isNumeric: true)
-                        OnboardingTextField(label: "Unit", placeholder: "lbs, miles, days...", text: $unit)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Target date")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.secondary)
-                            DatePicker("", selection: $deadline, displayedComponents: .date)
-                                .labelsHidden()
+                    GoalDetailsForm(
+                        initialTitle: prefillTitle,
+                        initialUnit: prefillUnit,
+                        goalTitlePlaceholder: goalTitlePlaceholder,
+                        currentValuePlaceholder: currentValuePlaceholder,
+                        targetValuePlaceholder: targetValuePlaceholder,
+                        targetLabel: selectedCategory.isDecreasing ? "Your target (lower)" : "Your target",
+                        onCreate: { title, current, target, unitText, date in
+                            createGoalAndFinish(title: title, current: current, target: target, unitText: unitText, date: date)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                    }
-
-                    // Create button
-                    Button {
-                        createGoalAndFinish()
-                    } label: {
-                        HStack {
-                            Image(systemName: "sparkles")
-                            Text("Create My Plan")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .padding(.horizontal, 40)
-                    .disabled(goalTitle.isEmpty || targetValue.isEmpty)
-
-                    Text("You can always change this later in the Goals tab.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    )
+                    .id(selectedCategory)
                 }
                 .padding(.top, 8)
             }
@@ -366,36 +351,35 @@ struct OnboardingView: View {
     private func prefillForCategory(_ category: GoalCategory) {
         switch category {
         case .weightLoss:
-            goalTitle = "Lose Weight"
-            unit = "lbs"
+            prefillTitle = "Lose Weight"
+            prefillUnit = "lbs"
         case .muscleGain:
-            goalTitle = "Build Muscle"
-            unit = "lbs"
+            prefillTitle = "Build Muscle"
+            prefillUnit = "lbs"
         case .endurance:
-            goalTitle = "Improve Endurance"
-            unit = "miles"
+            prefillTitle = "Improve Endurance"
+            prefillUnit = "miles"
         case .flexibility:
-            goalTitle = "Increase Flexibility"
-            unit = "sessions"
+            prefillTitle = "Increase Flexibility"
+            prefillUnit = "sessions"
         case .generalFitness:
-            goalTitle = "Get Fit"
-            unit = "workouts"
+            prefillTitle = "Get Fit"
+            prefillUnit = "workouts"
         case .sleepImprovement:
-            goalTitle = "Better Sleep"
-            unit = "hours"
+            prefillTitle = "Better Sleep"
+            prefillUnit = "hours"
         }
     }
 
-    private func createGoalAndFinish() {
-        guard let target = Double(targetValue), !goalTitle.isEmpty else { return }
-        let current = Double(currentValue) ?? 0
+    private func createGoalAndFinish(title: String, current: Double, target: Double, unitText: String, date: Date) {
+        guard !title.isEmpty else { return }
         let goal = UserGoal(
             category: selectedCategory,
-            title: goalTitle,
+            title: title,
             startingValue: current,
             targetValue: target,
-            unit: unit,
-            deadline: deadline
+            unit: unitText,
+            deadline: date
         )
         viewModel.addGoal(goal)
         FeedbackManager.success()
@@ -444,7 +428,7 @@ struct OnboardingView: View {
                     .padding(.horizontal)
 
                     Button {
-                        withAnimation { phase = .trialOffer }
+                        withAnimation { phase = .connectHealth }
                     } label: {
                         HStack {
                             Text("Continue")
@@ -509,7 +493,7 @@ struct OnboardingView: View {
             HStack {
                 Spacer()
                 Button("Skip") {
-                    withAnimation { phase = .connectHealth }
+                    onComplete()
                 }
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -532,7 +516,7 @@ struct OnboardingView: View {
                         Text("Start Your 7-Day Free Trial")
                             .font(.title2)
                             .fontWeight(.bold)
-                        Text("Full access to your personalized plan. No charge for 7 days.")
+                        Text("Full access to AI Coach and adaptive workouts. No charge for 7 days.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -548,8 +532,11 @@ struct OnboardingView: View {
                     .padding(.horizontal, 24)
 
                     if subscriptionManager.products.isEmpty {
-                        ProgressView()
-                            .padding()
+                        VStack(spacing: 8) {
+                            trialFallbackOption(isAnnual: true)
+                            trialFallbackOption(isAnnual: false)
+                        }
+                        .padding(.horizontal, 24)
                     } else {
                         VStack(spacing: 8) {
                             ForEach(subscriptionManager.products, id: \.id) { product in
@@ -559,16 +546,14 @@ struct OnboardingView: View {
                         .padding(.horizontal, 24)
                     }
 
+                    postTrialAccessExplainer
+                        .padding(.horizontal, 24)
+
                     Button {
                         guard let product = (selectedTrialProduct ?? subscriptionManager.products.last) else { return }
                         FeedbackManager.medium()
                         Task {
                             await subscriptionManager.purchase(product)
-                            if subscriptionManager.isSubscribed {
-                                await MainActor.run {
-                                    withAnimation { phase = .connectHealth }
-                                }
-                            }
                         }
                     } label: {
                         Text("Start 7-Day Free Trial")
@@ -581,13 +566,19 @@ struct OnboardingView: View {
                     .padding(.horizontal, 32)
                     .disabled(subscriptionManager.products.isEmpty)
 
-                    Text("Cancel anytime in Settings before day 7. No charge until then. After trial, billed at the price shown above.")
+                    Text("Cancel anytime in Settings before day 7 — no charge. If you cancel, you keep Apple Health sync and manual logging, but AI Coach insights turn off.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
                 .padding(.bottom, 32)
+            }
+        }
+        .onChange(of: subscriptionManager.isSubscribed) { _, subscribed in
+            if subscribed {
+                FeedbackManager.success()
+                onComplete()
             }
         }
     }
@@ -608,13 +599,82 @@ struct OnboardingView: View {
         .padding(.vertical, 4)
     }
 
+    private var postTrialAccessExplainer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("After your 7-day trial")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Paid", systemImage: "sparkles")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.purple)
+                    Text("AI Coach's Notes")
+                        .font(.caption)
+                    Text("Adaptive workouts")
+                        .font(.caption)
+                    Text("Personalized nutrition")
+                        .font(.caption)
+                    Text("All Health insights")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Free", systemImage: "person")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Text("Apple Health sync")
+                        .font(.caption)
+                    Text("Manual logging")
+                        .font(.caption)
+                    Text("Workout history")
+                        .font(.caption)
+                    Text("No AI Coach")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding()
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    private func trialFallbackOption(isAnnual: Bool) -> some View {
+        trialOptionCard(
+            isSelected: isAnnual,
+            isAnnual: isAnnual,
+            price: isAnnual ? SubscriptionManager.annualDisplayPrice : SubscriptionManager.monthlyDisplayPrice,
+            cadence: isAnnual ? "/ year" : "/ month",
+            secondaryLine: isAnnual ? "\(SubscriptionManager.annualEffectiveMonthly) / month, billed annually" : "Cancel anytime",
+            action: {}
+        )
+        .opacity(0.6)
+    }
+
     private func trialProductOption(_ product: Product) -> some View {
         let isSelected = selectedTrialProduct?.id == product.id || (selectedTrialProduct == nil && product.id == subscriptionManager.products.last?.id)
         let isAnnual = product.id.contains("annual")
-        return Button {
-            FeedbackManager.light()
-            selectedTrialProduct = product
-        } label: {
+        return trialOptionCard(
+            isSelected: isSelected,
+            isAnnual: isAnnual,
+            price: product.displayPrice,
+            cadence: isAnnual ? "/ year" : "/ month",
+            secondaryLine: isAnnual ? "\(SubscriptionManager.annualEffectiveMonthly) / month, billed annually" : "Cancel anytime",
+            action: {
+                FeedbackManager.light()
+                selectedTrialProduct = product
+            }
+        )
+    }
+
+    private func trialOptionCard(isSelected: Bool, isAnnual: Bool, price: String, cadence: String, secondaryLine: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? .blue : Color(.systemGray3))
@@ -626,7 +686,7 @@ struct OnboardingView: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         if isAnnual {
-                            Text("Best Value")
+                            Text("Save 48%")
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.white)
@@ -635,11 +695,20 @@ struct OnboardingView: View {
                                 .background(.green, in: Capsule())
                         }
                     }
-                    Text("\(product.displayPrice) \(isAnnual ? "/ year after trial" : "/ month after trial")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(secondaryLine)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(price)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                    Text(cadence)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding()
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -679,34 +748,134 @@ struct OnboardingView: View {
                 }
 
                 VStack(spacing: 12) {
-                    Button {
-                        Task {
-                            await viewModel.healthKit.requestAuthorization()
-                            FeedbackManager.success()
-                            onComplete()
-                        }
-                    } label: {
-                        Label("Connect Apple Health", systemImage: "heart.circle.fill")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .controlSize(.large)
-                    .padding(.horizontal, 40)
-
-                    Button {
-                        onComplete()
-                    } label: {
-                        Text("Maybe Later")
+                    if isConnectingHealth {
+                        ProgressView()
+                            .controlSize(.large)
+                            .padding(.vertical, 12)
+                        Text("Setting things up...")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    } else {
+                        Button {
+                            isConnectingHealth = true
+                            Task {
+                                await viewModel.healthKit.requestAuthorization()
+                                FeedbackManager.success()
+                                await MainActor.run {
+                                    isConnectingHealth = false
+                                    withAnimation { phase = .trialOffer }
+                                }
+                            }
+                        } label: {
+                            Label("Connect Apple Health", systemImage: "heart.circle.fill")
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .controlSize(.large)
+                        .padding(.horizontal, 40)
+
+                        Button {
+                            withAnimation { phase = .trialOffer }
+                        } label: {
+                            Text("Maybe Later")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
 
             Spacer()
             Spacer()
+        }
+    }
+}
+
+// MARK: - Goal Details Form (isolated for typing perf)
+
+private struct GoalDetailsForm: View {
+    let initialTitle: String
+    let initialUnit: String
+    let goalTitlePlaceholder: String
+    let currentValuePlaceholder: String
+    let targetValuePlaceholder: String
+    let targetLabel: String
+    let onCreate: (String, Double, Double, String, Date) -> Void
+
+    @State private var goalTitle: String
+    @State private var currentValue = ""
+    @State private var targetValue = ""
+    @State private var unit: String
+    @State private var deadline = Date().addingTimeInterval(86400 * 30)
+
+    init(initialTitle: String, initialUnit: String, goalTitlePlaceholder: String, currentValuePlaceholder: String, targetValuePlaceholder: String, targetLabel: String, onCreate: @escaping (String, Double, Double, String, Date) -> Void) {
+        self.initialTitle = initialTitle
+        self.initialUnit = initialUnit
+        self.goalTitlePlaceholder = goalTitlePlaceholder
+        self.currentValuePlaceholder = currentValuePlaceholder
+        self.targetValuePlaceholder = targetValuePlaceholder
+        self.targetLabel = targetLabel
+        self.onCreate = onCreate
+        _goalTitle = State(initialValue: initialTitle)
+        _unit = State(initialValue: initialUnit)
+    }
+
+    enum Field: Hashable { case goalTitle, current, target, unit }
+    @FocusState private var focus: Field?
+
+    var body: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 14) {
+                OnboardingTextField(label: "Goal name", placeholder: goalTitlePlaceholder, text: $goalTitle)
+                    .focused($focus, equals: .goalTitle)
+                OnboardingTextField(label: "Where are you now?", placeholder: currentValuePlaceholder, text: $currentValue, isNumeric: true)
+                    .focused($focus, equals: .current)
+                OnboardingTextField(label: targetLabel, placeholder: targetValuePlaceholder, text: $targetValue, isNumeric: true)
+                    .focused($focus, equals: .target)
+                OnboardingTextField(label: "Unit", placeholder: "lbs, miles, days...", text: $unit)
+                    .focused($focus, equals: .unit)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Target date")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                    DatePicker("", selection: $deadline, displayedComponents: .date)
+                        .labelsHidden()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            }
+
+            Button {
+                focus = nil
+                let current = Double(currentValue) ?? 0
+                guard let target = Double(targetValue) else { return }
+                onCreate(goalTitle, current, target, unit, deadline)
+            } label: {
+                HStack {
+                    Image(systemName: "sparkles")
+                    Text("Create My Plan")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 40)
+            .disabled(goalTitle.isEmpty || targetValue.isEmpty)
+
+            Text("You can always change this later in the Goals tab.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focus = nil }
+            }
         }
     }
 }
@@ -727,6 +896,7 @@ private struct OnboardingTextField: View {
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: $text)
                 .keyboardType(isNumeric ? .decimalPad : .default)
+                .submitLabel(.done)
                 .padding(12)
                 .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
         }

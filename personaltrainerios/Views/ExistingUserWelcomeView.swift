@@ -26,7 +26,7 @@ struct ExistingUserWelcomeView: View {
                         .font(.title)
                         .fontWeight(.bold)
                         .multilineTextAlignment(.center)
-                    Text("Longivor is going premium. As a thank you for being an early user, you get a free month on us.")
+                    Text("Stryvur is going premium. As a thank you for being an early user, you get a free month on us.")
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

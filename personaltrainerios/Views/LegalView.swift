@@ -45,7 +45,7 @@ struct LegalView: View {
 
     private var privacyText: String {
         """
-        Longivor respects your privacy. This document explains what data we collect, how we use it, and your rights.
+        Stryvur respects your privacy. This document explains what data we collect, how we use it, and your rights.
 
         WHAT WE COLLECT
 
@@ -81,7 +81,7 @@ struct LegalView: View {
 
         CHILDREN
 
-        Longivor is not intended for users under 13. We do not knowingly collect data from children.
+        Stryvur is not intended for users under 13. We do not knowingly collect data from children.
 
         CHANGES TO THIS POLICY
 
@@ -95,7 +95,7 @@ struct LegalView: View {
 
     private var termsText: String {
         """
-        By using Longivor, you agree to these terms.
+        By using Stryvur, you agree to these terms.
 
         ACCEPTANCE
 
@@ -107,14 +107,14 @@ struct LegalView: View {
 
         ACCEPTABLE USE
 
-        You agree to use Longivor only for personal, non-commercial purposes. You will not:
+        You agree to use Stryvur only for personal, non-commercial purposes. You will not:
         • Reverse engineer, decompile, or attempt to extract the source code.
         • Use the app to harm yourself or others.
         • Misrepresent your identity or information.
 
         NOT MEDICAL ADVICE
 
-        Longivor provides fitness and wellness guidance based on user-provided data and general training principles. It is not a substitute for professional medical advice, diagnosis, or treatment.
+        Stryvur provides fitness and wellness guidance based on user-provided data and general training principles. It is not a substitute for professional medical advice, diagnosis, or treatment.
 
         Always consult a qualified health professional before:
         • Starting any new exercise program.
@@ -129,11 +129,11 @@ struct LegalView: View {
 
         ASSUMPTION OF RISK
 
-        Exercise carries inherent risks. By using Longivor, you acknowledge these risks and agree that you exercise at your own risk. We are not liable for any injuries, illnesses, or harms resulting from following recommendations in the app.
+        Exercise carries inherent risks. By using Stryvur, you acknowledge these risks and agree that you exercise at your own risk. We are not liable for any injuries, illnesses, or harms resulting from following recommendations in the app.
 
         LIMITATION OF LIABILITY
 
-        To the fullest extent permitted by law, Longivor and its operators are not liable for any indirect, incidental, or consequential damages arising from your use of the app.
+        To the fullest extent permitted by law, Stryvur and its operators are not liable for any indirect, incidental, or consequential damages arising from your use of the app.
 
         TERMINATION
 

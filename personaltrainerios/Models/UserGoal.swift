@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum GoalCategory: String, CaseIterable, Codable, Identifiable {
     case weightLoss = "Lose Weight"
@@ -12,12 +13,12 @@ enum GoalCategory: String, CaseIterable, Codable, Identifiable {
 
     var icon: String {
         switch self {
-        case .weightLoss: return "flame.fill"
-        case .muscleGain: return "dumbbell.fill"
+        case .weightLoss: return "chart.line.downtrend.xyaxis"
+        case .muscleGain: return "figure.strengthtraining.traditional"
         case .endurance: return "figure.run"
         case .flexibility: return "figure.flexibility"
-        case .generalFitness: return "heart.fill"
-        case .sleepImprovement: return "moon.fill"
+        case .generalFitness: return "figure.mixed.cardio"
+        case .sleepImprovement: return "bed.double.fill"
         }
     }
 
@@ -29,6 +30,17 @@ enum GoalCategory: String, CaseIterable, Codable, Identifiable {
         case .flexibility: return "purple"
         case .generalFitness: return "green"
         case .sleepImprovement: return "indigo"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .weightLoss: return .orange
+        case .muscleGain: return .red
+        case .endurance: return .blue
+        case .flexibility: return .purple
+        case .generalFitness: return .green
+        case .sleepImprovement: return .indigo
         }
     }
 

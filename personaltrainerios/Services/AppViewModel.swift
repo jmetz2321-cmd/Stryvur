@@ -41,6 +41,7 @@ class AppViewModel {
     // Top-level sheet routing (presented by MainTabView to avoid toolbar/sheet race)
     var activeSheet: DashboardSheet?
     var showFirstRunTour: Bool = false
+    var showRateAppPrompt: Bool = false
 
     // Progressive disclosure & UX improvements
     var isLoadingHealthData = false
@@ -178,6 +179,15 @@ class AppViewModel {
         BehaviorTracker.record(.mealLog)
         refreshInsights()
         triggerPlanUpdated("Coach's Notes updated")
+
+        // Show rate prompt on first nutrition log entry
+        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && foodLog.count == 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.showRateAppPrompt = true
+                UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
+            }
+        }
+
         saveData()
     }
 
@@ -503,6 +513,14 @@ class AppViewModel {
         lastCompletedWorkoutId = workoutId
         undoToastMessage = CoachCopy.workoutCompleted(name)
         showUndoToast = true
+
+        // Show rate prompt on first workout completion
+        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && workoutHistory.count == 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.showRateAppPrompt = true
+                UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
+            }
+        }
 
         saveData()
     }
