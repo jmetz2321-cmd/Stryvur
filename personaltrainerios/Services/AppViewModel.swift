@@ -549,12 +549,18 @@ class AppViewModel {
     /// - Subsequent: shows every 120 days when user logs another data point
     /// - Never shows on sign-in or app launch — only after in-app engagement
     private func checkAndShowRatePrompt() {
+        let hasSeenBefore = UserDefaults.standard.bool(forKey: "hasSeenRatePrompt")
+        print("⭐️ [RatePrompt] checkAndShowRatePrompt called. hasSeenBefore=\(hasSeenBefore)")
+
         // First time: show on user's first logged data point
-        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") {
+        if !hasSeenBefore {
+            print("⭐️ [RatePrompt] FIRST TIME — scheduling native review modal in 1s")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                print("⭐️ [RatePrompt] Calling SKStoreReviewController.requestReview() NOW")
                 self.requestNativeReview()
                 UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
+                print("⭐️ [RatePrompt] hasSeenRatePrompt flag set to true")
             }
             return
         }
@@ -562,18 +568,27 @@ class AppViewModel {
         // Subsequent times: show only after 120 days, triggered by next in-app activity
         let lastPromptDate = UserDefaults.standard.object(forKey: "lastRatePromptDate") as? Date ?? Date.distantPast
         let daysSinceLastPrompt = Calendar.current.dateComponents([.day], from: lastPromptDate, to: Date()).day ?? 0
+        print("⭐️ [RatePrompt] Already shown. Days since last prompt: \(daysSinceLastPrompt)/120")
 
         if daysSinceLastPrompt >= 120 {
+            print("⭐️ [RatePrompt] 120+ days passed — scheduling native review modal in 1s")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                print("⭐️ [RatePrompt] Calling SKStoreReviewController.requestReview() NOW")
                 self.requestNativeReview()
                 UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
             }
+        } else {
+            print("⭐️ [RatePrompt] Skipping — not enough days passed since last prompt")
         }
     }
 
     private func requestNativeReview() {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            print("⭐️ [RatePrompt] Got window scene — requesting review")
             SKStoreReviewController.requestReview(in: windowScene)
+            print("⭐️ [RatePrompt] requestReview() call completed (Apple decides if it shows)")
+        } else {
+            print("⭐️ [RatePrompt] ❌ ERROR: Could not find window scene")
         }
     }
 
