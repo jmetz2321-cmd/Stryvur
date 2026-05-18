@@ -180,13 +180,8 @@ class AppViewModel {
         refreshInsights()
         triggerPlanUpdated("Coach's Notes updated")
 
-        // Show rate prompt on first nutrition log entry
-        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && foodLog.count == 1 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.showRateAppPrompt = true
-                UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
-            }
-        }
+        // Show rate prompt on first nutrition entry, then periodically every 5 entries or 7 days
+        checkAndShowRatePrompt()
 
         saveData()
     }
@@ -514,13 +509,8 @@ class AppViewModel {
         undoToastMessage = CoachCopy.workoutCompleted(name)
         showUndoToast = true
 
-        // Show rate prompt on first workout completion
-        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && workoutHistory.count == 1 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.showRateAppPrompt = true
-                UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
-            }
-        }
+        // Show rate prompt on first workout, then periodically every 5 workouts or 7 days
+        checkAndShowRatePrompt()
 
         saveData()
     }
@@ -540,6 +530,36 @@ class AppViewModel {
         showUndoToast = false
         FeedbackManager.light()
         saveData()
+    }
+
+    private func checkAndShowRatePrompt() {
+        let totalActivities = workoutHistory.count + foodLog.count
+
+        // First time: show on first activity
+        if !UserDefaults.standard.bool(forKey: "hasSeenRatePrompt") && totalActivities >= 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.showRateAppPrompt = true
+                UserDefaults.standard.set(true, forKey: "hasSeenRatePrompt")
+                UserDefaults.standard.set(totalActivities, forKey: "lastRatePromptActivityCount")
+                UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
+            }
+            return
+        }
+
+        // Subsequent times: show every 5 activities or 7 days
+        let lastActivityCount = UserDefaults.standard.integer(forKey: "lastRatePromptActivityCount")
+        let lastPromptDate = UserDefaults.standard.object(forKey: "lastRatePromptDate") as? Date ?? Date.distantPast
+
+        let activitiesSinceLastPrompt = totalActivities - lastActivityCount
+        let daysSinceLastPrompt = Calendar.current.dateComponents([.day], from: lastPromptDate, to: Date()).day ?? 0
+
+        if activitiesSinceLastPrompt >= 5 || daysSinceLastPrompt >= 7 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.showRateAppPrompt = true
+                UserDefaults.standard.set(totalActivities, forKey: "lastRatePromptActivityCount")
+                UserDefaults.standard.set(Date(), forKey: "lastRatePromptDate")
+            }
+        }
     }
 
     // MARK: - Training Plan Generation
