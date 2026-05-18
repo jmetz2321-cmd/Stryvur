@@ -4,7 +4,7 @@ import AuthenticationServices
 struct SignInView: View {
     var authManager: AuthManager
     @Environment(\.colorScheme) var colorScheme
-    @State private var showRateAppPreview = false
+    @State private var showRateAppPreview = true
 
     var body: some View {
         VStack(spacing: 0) {
